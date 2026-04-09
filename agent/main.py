@@ -25,6 +25,8 @@ NUMEROS_AUTORIZADOS = {
     "528111828879",
     "17378889040",
     "14253709886",
+    "5218181764764",
+    "5218111828879",
 }
 
 # Números de auto-chat: el agente responde aunque el mensaje sea "from_me"
