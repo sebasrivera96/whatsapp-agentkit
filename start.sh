@@ -2,7 +2,7 @@
 # AgentKit — Script de inicio
 # El usuario ejecuta: bash start.sh
 
-set -e
+# set -e
 
 echo ""
 echo "==========================================================="

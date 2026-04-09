@@ -18,7 +18,9 @@
       "Write",
       "Edit",
       "Glob",
-      "Grep"
+      "Grep",
+      "Bash(python:*)",
+      "Bash(printf \"Hola, tengo una pregunta sobre mi poliza de gastos medicos\\\\nsalir\\\\n\")"
     ]
   }
 }
