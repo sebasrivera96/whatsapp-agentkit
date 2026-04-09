@@ -62,6 +62,7 @@ async def health_check():
 
 @app.get("/webhook")
 @app.get("/webhook/messages")
+@app.get("/webhook/messages/post")
 async def webhook_verificacion(request: Request):
     """Verificación GET del webhook (requerido por Meta Cloud API, no-op para otros)."""
     resultado = await proveedor.validar_webhook(request)
@@ -72,6 +73,7 @@ async def webhook_verificacion(request: Request):
 
 @app.post("/webhook")
 @app.post("/webhook/messages")
+@app.post("/webhook/messages/post")
 async def webhook_handler(request: Request):
     """
     Recibe mensajes de WhatsApp via el proveedor configurado.
