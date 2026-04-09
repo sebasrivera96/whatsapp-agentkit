@@ -24,6 +24,13 @@ load_dotenv()
 NUMEROS_AUTORIZADOS = {
     "528111828879",
     "17378889040",
+    "14253709886",
+}
+
+# Números de auto-chat: el agente responde aunque el mensaje sea "from_me"
+# (cuando el usuario se escribe a sí mismo en WhatsApp)
+SELF_CHAT_NUMEROS = {
+    "17378889040",
 }
 
 # Configuración de logging según entorno
@@ -84,12 +91,18 @@ async def webhook_handler(request: Request):
         mensajes = await proveedor.parsear_webhook(request)
 
         for msg in mensajes:
-            # Ignorar mensajes propios o vacíos
-            if msg.es_propio or not msg.texto:
+            # Ignorar mensajes vacíos
+            if not msg.texto:
+                continue
+
+            # Normalizar número de teléfono
+            numero_limpio = msg.telefono.replace("+", "").replace("@s.whatsapp.net", "").split("@")[0]
+
+            # Ignorar mensajes propios EXCEPTO los de auto-chat autorizados
+            if msg.es_propio and numero_limpio not in SELF_CHAT_NUMEROS:
                 continue
 
             # Verificar lista blanca — ignorar números no autorizados
-            numero_limpio = msg.telefono.replace("+", "").replace("@s.whatsapp.net", "").split("@")[0]
             if numero_limpio not in NUMEROS_AUTORIZADOS:
                 logger.info(f"Número no autorizado ignorado: {msg.telefono}")
                 continue
