@@ -63,6 +63,7 @@ async def webhook_verificacion(request: Request):
 
 
 @app.post("/webhook")
+@app.post("/webhook/messages")
 async def webhook_handler(request: Request):
     """
     Recibe mensajes de WhatsApp via el proveedor configurado.
