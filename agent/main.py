@@ -91,15 +91,20 @@ async def webhook_handler(request: Request):
         mensajes = await proveedor.parsear_webhook(request)
 
         for msg in mensajes:
+            # Log de diagnóstico — ver exactamente qué llega de Whapi
+            logger.info(f"[RAW] telefono={msg.telefono} | es_propio={msg.es_propio} | texto={msg.texto[:50] if msg.texto else '(vacío)'}")
+
             # Ignorar mensajes vacíos
             if not msg.texto:
                 continue
 
             # Normalizar número de teléfono
             numero_limpio = msg.telefono.replace("+", "").replace("@s.whatsapp.net", "").split("@")[0]
+            logger.info(f"[FILTRO] numero_limpio={numero_limpio} | es_propio={msg.es_propio}")
 
             # Ignorar mensajes propios EXCEPTO los de auto-chat autorizados
             if msg.es_propio and numero_limpio not in SELF_CHAT_NUMEROS:
+                logger.info(f"[IGNORADO] mensaje propio no autorizado: {numero_limpio}")
                 continue
 
             # Verificar lista blanca — ignorar números no autorizados
