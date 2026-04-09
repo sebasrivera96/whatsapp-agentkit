@@ -61,6 +61,7 @@ async def health_check():
 
 
 @app.get("/webhook")
+@app.get("/webhook/messages")
 async def webhook_verificacion(request: Request):
     """Verificación GET del webhook (requerido por Meta Cloud API, no-op para otros)."""
     resultado = await proveedor.validar_webhook(request)
