@@ -126,15 +126,18 @@ async def generar_respuesta(
                     "content": json.dumps(result, ensure_ascii=False),
                 })
 
-                # Actualizar contexto de cliente si buscar_cliente retornó exactamente 1 resultado
-                if block.name == "buscar_cliente" and "clientes" in result:
-                    clientes = result["clientes"]
-                    if len(clientes) == 1 and not state.customer_context:
-                        state.customer_context = {
-                            "id_cli": clientes[0]["IDCli"],
-                            "nombre": clientes[0]["NombreCompleto"],
-                        }
-                        logger.info("Cliente identificado: %s (IDCli=%s)", clientes[0]["NombreCompleto"], clientes[0]["IDCli"])
+                # No auto-identificamos al cliente aquí: la verificación de fecha de nacimiento
+                # la realiza Claude siguiendo el system prompt. Claude llama a obtener_polizas
+                # solo después de confirmar ambos factores (nombre + fecha), momento en el que
+                # actualizamos customer_context desde el tool obtener_polizas.
+                if block.name == "obtener_polizas" and "polizas" in result and not state.customer_context:
+                    # Claude llegó a pedir las pólizas → identidad ya verificada
+                    # Recuperar el nombre desde los mensajes anteriores si está disponible
+                    state.customer_context = {
+                        "id_cli": block.input.get("id_cli"),
+                        "nombre": "",  # Se completará en el siguiente turno si Claude lo menciona
+                    }
+                    logger.info("Cliente verificado, IDCli=%s", block.input.get("id_cli"))
 
                 # Escalación: pausar bot, retornar inmediatamente
                 if block.name == "notificar_agente":

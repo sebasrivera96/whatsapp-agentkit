@@ -139,6 +139,7 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
                 "IDCli": c.get("IDCli"),
                 "NombreCompleto": c.get("NombreCompleto", ""),
                 "RFC": c.get("RFC", ""),
+                "FechaNac": c.get("FechaNac", ""),  # Para verificación de identidad — no mostrar al cliente
             }
             for c in clientes[:5]
         ]
