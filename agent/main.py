@@ -19,6 +19,12 @@ from agent.providers import obtener_proveedor
 
 load_dotenv()
 
+# Lista blanca de números autorizados (incluir código de país, sin +)
+# Solo estos números recibirán respuesta del agente
+NUMEROS_AUTORIZADOS = {
+    "528111828879",
+}
+
 # Configuración de logging según entorno
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 log_level = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
@@ -76,6 +82,12 @@ async def webhook_handler(request: Request):
         for msg in mensajes:
             # Ignorar mensajes propios o vacíos
             if msg.es_propio or not msg.texto:
+                continue
+
+            # Verificar lista blanca — ignorar números no autorizados
+            numero_limpio = msg.telefono.replace("+", "").replace("@s.whatsapp.net", "").split("@")[0]
+            if numero_limpio not in NUMEROS_AUTORIZADOS:
+                logger.info(f"Número no autorizado ignorado: {msg.telefono}")
                 continue
 
             logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
