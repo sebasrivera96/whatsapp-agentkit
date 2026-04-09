@@ -20,7 +20,9 @@
       "Glob",
       "Grep",
       "Bash(python:*)",
-      "Bash(printf \"Hola, tengo una pregunta sobre mi poliza de gastos medicos\\\\nsalir\\\\n\")"
+      "Bash(printf \"Hola, tengo una pregunta sobre mi poliza de gastos medicos\\\\nsalir\\\\n\")",
+      "Bash(cp \"C:/Src/SICAS_AI/Formatos AXA/Nueva solicitud de siniestros salud_\\(Programacion o reembolso\\) AXA.pdf\" \"C:/src/whatsapp-agentkit/forms/solicitud_siniestros.pdf\")",
+      "Bash(cp \"C:/Src/SICAS_AI/Formatos AXA/Gastos Medicos Mayores InformeMedico AXA.pdf\" \"C:/src/whatsapp-agentkit/forms/informe_medico.pdf\")"
     ]
   }
 }

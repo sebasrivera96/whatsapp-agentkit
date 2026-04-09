@@ -1,95 +1,147 @@
-# agent/brain.py — Cerebro del agente: conexión con Claude API
-# Generado por AgentKit
+# agent/brain.py — Cerebro del agente: loop agentic con herramientas SICAS
+# Integra SICAS_AI/ai_agent.py en el stack async de agentkit
 
 """
-Lógica de IA del agente de Gonzalez Loredo Asesoría Patrimonial.
-Lee el system prompt de prompts.yaml y genera respuestas usando la API de Anthropic Claude.
+Lógica de IA del agente. Ejecuta un loop Claude con tool-use para:
+- Buscar clientes y pólizas en SICAS
+- Enviar documentos y formularios
+- Escalar a asesores humanos
+
+Retorna: (respuesta_para_cliente, mensaje_para_asesor | None)
 """
 
 import os
+import json
 import yaml
 import logging
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
+from agent.conversation_manager import ConversationState
+from agent.tools import TOOLS, dispatch_tool
+
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
-# Cliente de Anthropic
 client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
-def cargar_config_prompts() -> dict:
-    """Lee toda la configuración desde config/prompts.yaml."""
+def _cargar_system_prompt() -> str:
+    """Lee el system prompt desde config/prompts.yaml."""
     try:
         with open("config/prompts.yaml", "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+            config = yaml.safe_load(f) or {}
+            return config.get("system_prompt", "Eres un asistente útil. Responde en español.")
     except FileNotFoundError:
         logger.error("config/prompts.yaml no encontrado")
-        return {}
+        return "Eres un asistente útil. Responde en español."
 
 
-def cargar_system_prompt() -> str:
-    """Lee el system prompt desde config/prompts.yaml."""
-    config = cargar_config_prompts()
-    return config.get("system_prompt", "Eres un asistente útil. Responde en español.")
+def _cargar_mensaje(clave: str, default: str) -> str:
+    """Lee un mensaje de configuración desde config/prompts.yaml."""
+    try:
+        with open("config/prompts.yaml", "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+            return config.get(clave, default)
+    except FileNotFoundError:
+        return default
 
 
-def obtener_mensaje_error() -> str:
-    """Retorna el mensaje de error configurado en prompts.yaml."""
-    config = cargar_config_prompts()
-    return config.get("error_message", "Lo sentimos, estamos experimentando dificultades técnicas. Por favor intente nuevamente en unos minutos.")
+def _extract_text(content) -> str:
+    """Extrae el texto de la lista de bloques de contenido de Claude."""
+    parts = []
+    for block in content:
+        if hasattr(block, "type") and block.type == "text":
+            parts.append(block.text)
+        elif isinstance(block, dict) and block.get("type") == "text":
+            parts.append(block["text"])
+    return "\n".join(parts).strip()
 
 
-def obtener_mensaje_fallback() -> str:
-    """Retorna el mensaje de fallback configurado en prompts.yaml."""
-    config = cargar_config_prompts()
-    return config.get("fallback_message", "Disculpe, no logré entender su mensaje. ¿Podría reformularlo?")
-
-
-async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
+async def generar_respuesta(
+    state: ConversationState,
+    form_urls: dict,
+) -> tuple[str, str | None]:
     """
-    Genera una respuesta usando Claude API.
+    Ejecuta el loop agentic de Claude con tool-use para un turno del usuario.
 
     Args:
-        mensaje: El mensaje nuevo del usuario
-        historial: Lista de mensajes anteriores [{"role": "user/assistant", "content": "..."}]
+        state: Estado actual de la conversación (historial, cliente identificado, cliente SICAS).
+        form_urls: Dict con URLs de formularios PDF {"reembolso": "...", "procedimiento_medico": "..."}.
 
     Returns:
-        La respuesta generada por Claude
+        Tupla (respuesta_cliente, mensaje_asesor).
+        mensaje_asesor es None si no hubo escalación.
     """
-    # Si el mensaje es muy corto o vacío, usar fallback
-    if not mensaje or len(mensaje.strip()) < 2:
-        return obtener_mensaje_fallback()
+    system = _cargar_system_prompt()
 
-    system_prompt = cargar_system_prompt()
-
-    # Construir mensajes para la API
-    mensajes = []
-    for msg in historial:
-        mensajes.append({
-            "role": msg["role"],
-            "content": msg["content"]
-        })
-
-    # Agregar el mensaje actual
-    mensajes.append({
-        "role": "user",
-        "content": mensaje
-    })
-
-    try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
-            system=system_prompt,
-            messages=mensajes
+    # Inyectar contexto del cliente si ya fue identificado (evita volver a preguntar)
+    if state.customer_context:
+        nombre = state.customer_context.get("nombre", "")
+        id_cli = state.customer_context.get("id_cli", "")
+        system += (
+            f"\n\n## Cliente identificado en esta sesión\n"
+            f"Nombre: {nombre}\nIDCli: {id_cli}\n"
+            f"No vuelvas a pedir su identidad."
         )
 
-        respuesta = response.content[0].text
-        logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
-        return respuesta
+    error_msg = _cargar_mensaje(
+        "error_message",
+        "Lo sentimos, estamos experimentando dificultades técnicas. Por favor intente nuevamente en unos minutos."
+    )
 
-    except Exception as e:
-        logger.error(f"Error Claude API: {e}")
-        return obtener_mensaje_error()
+    for _ in range(10):  # safety cap — Claude raramente necesita más de 3-4 iteraciones
+        try:
+            response = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                system=system,
+                messages=state.messages,
+                tools=TOOLS,
+            )
+        except Exception as e:
+            logger.error("Error Claude API: %s", e)
+            return error_msg, None
+
+        # Guardar respuesta completa (incluye bloques tool_use que Claude necesita en el siguiente turno)
+        state.messages.append({"role": "assistant", "content": response.content})
+        state.trim_to_window()
+
+        if response.stop_reason == "end_turn":
+            return _extract_text(response.content), None
+
+        if response.stop_reason == "tool_use":
+            tool_results = []
+
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+
+                result = await dispatch_tool(block.name, block.input, state, form_urls)
+                logger.info("Tool %s → %s", block.name, json.dumps(result, ensure_ascii=False)[:200])
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
+
+                # Actualizar contexto de cliente si buscar_cliente retornó exactamente 1 resultado
+                if block.name == "buscar_cliente" and "clientes" in result:
+                    clientes = result["clientes"]
+                    if len(clientes) == 1 and not state.customer_context:
+                        state.customer_context = {
+                            "id_cli": clientes[0]["IDCli"],
+                            "nombre": clientes[0]["NombreCompleto"],
+                        }
+                        logger.info("Cliente identificado: %s (IDCli=%s)", clientes[0]["NombreCompleto"], clientes[0]["IDCli"])
+
+                # Escalación: pausar bot, retornar inmediatamente
+                if block.name == "notificar_agente":
+                    state.mode = "paused"
+                    return result["mensaje_cliente"], result.get("mensaje_agente")
+
+            state.messages.append({"role": "user", "content": tool_results})
+
+    logger.warning("Loop agentic alcanzó el límite de iteraciones para %s", state.phone)
+    return "Lo siento, no pude procesar su solicitud en este momento. Por favor intente de nuevo.", None

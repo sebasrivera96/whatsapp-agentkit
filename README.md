@@ -374,3 +374,11 @@ Construido con [Claude Code](https://claude.ai/claude-code) para builders de LAT
 ## Licencia
 
 MIT — Usa este proyecto como quieras, para lo que quieras.
+
+## TODOs
+- Agregar lista de Hospitales por Estados para que el agente IA pueda responder.
+- Filtrar información no solo por persona física sino también por persona moral.
+    - Revisar Referencias/Concepto
+- Pedir fecha de nacimiento antes de regresar la poliza
+- Formatos de reembolso y programación médica
+- Saludar con el nombre, en caso de que el cliente se presente

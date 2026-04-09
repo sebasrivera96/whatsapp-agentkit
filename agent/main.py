@@ -1,9 +1,10 @@
 # agent/main.py — Servidor FastAPI + Webhook de WhatsApp
-# Generado por AgentKit
+# Integrado con SICAS CRM via ConversationManager
 
 """
 Servidor principal del agente de WhatsApp de Gonzalez Loredo Asesoría Patrimonial.
 Funciona con cualquier proveedor (Whapi, Meta, Twilio) gracias a la capa de providers.
+La IA usa tool-use para consultar pólizas en SICAS y escalar a asesores cuando sea necesario.
 """
 
 import os
@@ -11,61 +12,87 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
+from agent.memory import inicializar_db
+from agent.conversation_manager import ConversationManager
 from agent.providers import obtener_proveedor
 
 load_dotenv()
 
-# Lista blanca de números autorizados (incluir código de país, sin +)
-# Solo estos números recibirán respuesta del agente
+# Lista blanca de números autorizados (código de país, sin +)
 NUMEROS_AUTORIZADOS = {
-    "528111828879",
+    # "528111828879",
     "17378889040",
-    "14253709886",
-    "5218181764764",
-    "5218111828879",
+    # "14253709886",
+    # "5218181764764",
+    # "5218111828879",
 }
 
-# Números de auto-chat: el agente responde aunque el mensaje sea "from_me"
-# (cuando el usuario se escribe a sí mismo en WhatsApp)
+# Números de auto-chat: responde aunque el mensaje sea "from_me"
 SELF_CHAT_NUMEROS = {
     "17378889040",
 }
 
-# Configuración de logging según entorno
+# Configuración de logging
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 log_level = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
 logging.basicConfig(level=log_level)
 logger = logging.getLogger("agentkit")
 
-# Proveedor de WhatsApp (se configura en .env con WHATSAPP_PROVIDER)
+# Proveedor de WhatsApp
 proveedor = obtener_proveedor()
 PORT = int(os.getenv("PORT", 8000))
+
+# Número del asesor para notificaciones de escalación
+AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER", "")
+
+# URLs de formularios PDF
+# Si PUBLIC_URL está configurado, las rutas /forms/* se convierten en URLs absolutas.
+# En desarrollo: http://localhost:8000/forms/...
+# En Railway: https://tu-app.up.railway.app/forms/...
+_PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
+FORM_URLS = {
+    "reembolso": os.getenv("FORM_URL_REEMBOLSO", f"{_PUBLIC_URL}/forms/solicitud_siniestros.pdf"),
+    "procedimiento_medico": os.getenv("FORM_URL_PROCEDIMIENTO", f"{_PUBLIC_URL}/forms/solicitud_siniestros.pdf"),
+}
+
+# Mensaje cuando el bot está pausado (esperando asesor)
+PAUSED_MSG = (
+    "Su asesor ha sido notificado y estará con usted en breve. "
+    "Si tiene alguna urgencia médica, contacte directamente a su aseguradora."
+)
+
+# Gestor de conversaciones en memoria (un estado por número de teléfono)
+conversation_manager = ConversationManager()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Inicializa la base de datos al arrancar el servidor."""
+    """Inicializa recursos al arrancar el servidor."""
     await inicializar_db()
     logger.info("Base de datos inicializada")
     logger.info(f"Servidor AgentKit corriendo en puerto {PORT}")
     logger.info(f"Proveedor de WhatsApp: {proveedor.__class__.__name__}")
+    sicas_url = os.getenv("SICAS_API_URL", "(no configurado)")
+    logger.info(f"SICAS API: {sicas_url}")
     yield
 
 
 app = FastAPI(
     title="Soporte GL Asesoría Patrimonial — WhatsApp AI Agent",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan
 )
+
+# Servir formularios PDF como archivos estáticos en /forms/*
+app.mount("/forms", StaticFiles(directory="forms"), name="forms")
 
 
 @app.get("/")
 async def health_check():
-    """Endpoint de salud para Railway/monitoreo."""
     return {"status": "ok", "service": "Soporte GL Asesoría Patrimonial"}
 
 
@@ -93,45 +120,51 @@ async def webhook_eventos_ignorados(request: Request):
 async def webhook_handler(request: Request):
     """
     Recibe mensajes de WhatsApp via el proveedor configurado.
-    Procesa el mensaje, genera respuesta con Claude y la envía de vuelta.
+    Procesa el mensaje con el loop agentic SICAS y envía respuesta.
     """
     try:
-        # Parsear webhook — el proveedor normaliza el formato
         mensajes = await proveedor.parsear_webhook(request)
 
         for msg in mensajes:
-            # Ignorar mensajes vacíos
             if not msg.texto:
                 continue
 
             # Normalizar número de teléfono
             numero_limpio = msg.telefono.replace("+", "").replace("@s.whatsapp.net", "").split("@")[0]
 
-            # Ignorar mensajes propios EXCEPTO los de auto-chat autorizados
+            # Ignorar mensajes propios excepto auto-chat autorizado
             if msg.es_propio and numero_limpio not in SELF_CHAT_NUMEROS:
                 continue
 
-            # Verificar lista blanca — ignorar números no autorizados
+            # Verificar lista blanca
             if numero_limpio not in NUMEROS_AUTORIZADOS:
                 logger.info(f"Número no autorizado ignorado: {msg.telefono}")
                 continue
 
             logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
 
-            # Obtener historial ANTES de guardar el mensaje actual
-            # (brain.py agrega el mensaje actual, evitando duplicados)
-            historial = await obtener_historial(msg.telefono)
+            # Obtener o crear estado de conversación
+            state = conversation_manager.get_or_create(numero_limpio)
 
-            # Generar respuesta con Claude
-            respuesta = await generar_respuesta(msg.texto, historial)
+            # Si el bot está pausado (esperando asesor), enviar mensaje de espera
+            if state.mode == "paused":
+                await proveedor.enviar_mensaje(msg.telefono, PAUSED_MSG)
+                continue
 
-            # Guardar mensaje del usuario Y respuesta del agente en memoria
-            await guardar_mensaje(msg.telefono, "user", msg.texto)
-            await guardar_mensaje(msg.telefono, "assistant", respuesta)
+            # Agregar mensaje del usuario al historial
+            state.append_user_message(msg.texto)
 
-            # Enviar respuesta por WhatsApp via el proveedor
+            # Generar respuesta con loop agentic SICAS
+            respuesta, msg_asesor = await generar_respuesta(state, FORM_URLS)
+
+            # Notificar al asesor si hubo escalación
+            if msg_asesor and AGENT_WHATSAPP_NUMBER:
+                notif_asesor = f"📞 Cliente: {msg.telefono}\n{msg_asesor}"
+                await proveedor.enviar_mensaje(AGENT_WHATSAPP_NUMBER, notif_asesor)
+                logger.info(f"Asesor notificado ({AGENT_WHATSAPP_NUMBER}): {msg_asesor}")
+
+            # Enviar respuesta al cliente
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
-
             logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
 
         return {"status": "ok"}
@@ -139,3 +172,21 @@ async def webhook_handler(request: Request):
     except Exception as e:
         logger.error(f"Error en webhook: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Endpoints administrativos ─────────────────────────────────────────────────
+
+@app.post("/admin/reset/{phone}")
+async def admin_reset(phone: str):
+    """Borra el estado de conversación de un número (reinicio completo)."""
+    conversation_manager.reset(phone)
+    logger.info(f"Conversación reiniciada para: {phone}")
+    return {"status": "ok", "phone": phone, "action": "reset"}
+
+
+@app.post("/admin/unpause/{phone}")
+async def admin_unpause(phone: str):
+    """Reactiva el bot para un número que estaba pausado (post-escalación)."""
+    conversation_manager.set_mode(phone, "ai")
+    logger.info(f"Bot reactivado para: {phone}")
+    return {"status": "ok", "phone": phone, "action": "unpause"}

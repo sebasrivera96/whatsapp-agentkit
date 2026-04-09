@@ -1,116 +1,227 @@
-# agent/tools.py — Herramientas del agente
-# Generado por AgentKit
+# agent/tools.py — Herramientas SICAS para el agente de WhatsApp
+# Portado de SICAS_AI/ai_agent.py
 
 """
-Herramientas específicas de Gonzalez Loredo Asesoría Patrimonial.
-Estas funciones extienden las capacidades del agente más allá de responder texto.
+Define las 5 herramientas que Claude puede invocar y el dispatcher async
+que ejecuta cada llamada contra el CRM SICAS.
 """
 
-import os
-import yaml
 import logging
-from datetime import datetime
+from agent.conversation_manager import ConversationState
 
 logger = logging.getLogger("agentkit")
 
+# ── Definiciones de herramientas para la Claude API ──────────────────────────
 
-def cargar_info_negocio() -> dict:
-    """Carga la información del negocio desde business.yaml."""
-    try:
-        with open("config/business.yaml", "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        logger.error("config/business.yaml no encontrado")
-        return {}
+TOOLS = [
+    {
+        "name": "buscar_cliente",
+        "description": (
+            "Busca clientes en el sistema SICAS por nombre o apellido. "
+            "Úsala cuando el cliente mencione su nombre o pida información de sus pólizas. "
+            "Devuelve una lista de clientes con IDCli y NombreCompleto."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nombre": {
+                    "type": "string",
+                    "description": "Nombre o apellido a buscar. Ej: 'Olavarrieta' o 'Jorge Olavarrieta'.",
+                }
+            },
+            "required": ["nombre"],
+        },
+    },
+    {
+        "name": "obtener_polizas",
+        "description": (
+            "Obtiene todas las pólizas de un cliente dado su IDCli. "
+            "Usar después de confirmar la identidad del cliente con buscar_cliente."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id_cli": {
+                    "type": "integer",
+                    "description": "ID del cliente en SICAS, obtenido de buscar_cliente.",
+                }
+            },
+            "required": ["id_cli"],
+        },
+    },
+    {
+        "name": "obtener_documento",
+        "description": (
+            "Obtiene el enlace de descarga del documento digital de una póliza. "
+            "Usar cuando el cliente pida su póliza, comprobante o documento."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id_docto": {
+                    "type": "integer",
+                    "description": "ID del documento en SICAS, obtenido de obtener_polizas.",
+                },
+                "numero_poliza": {
+                    "type": "string",
+                    "description": "Número de póliza legible (campo Documento), para mostrarlo al cliente.",
+                },
+            },
+            "required": ["id_docto", "numero_poliza"],
+        },
+    },
+    {
+        "name": "obtener_formulario",
+        "description": (
+            "Devuelve el enlace al formulario PDF que necesita el cliente. "
+            "Usar cuando pida formularios de reembolso o para programar un procedimiento médico."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo_formulario": {
+                    "type": "string",
+                    "enum": ["reembolso", "procedimiento_medico"],
+                    "description": (
+                        "'reembolso' para reembolso de gastos médicos. "
+                        "'procedimiento_medico' para autorización de cirugía u hospitalización."
+                    ),
+                }
+            },
+            "required": ["tipo_formulario"],
+        },
+    },
+    {
+        "name": "notificar_agente",
+        "description": (
+            "Notifica a un asesor humano y pausa el bot para esa conversación. "
+            "Usar cuando: el cliente está molesto, menciona siniestro/accidente/urgente, "
+            "pide hablar con una persona, solicita cancelación o modificación de póliza, "
+            "o no se puede encontrar al cliente después de 2 intentos."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "razon": {
+                    "type": "string",
+                    "description": "Motivo breve de la escalación para informar al asesor.",
+                },
+                "urgencia": {
+                    "type": "string",
+                    "enum": ["normal", "urgente"],
+                    "description": "Nivel de urgencia.",
+                },
+            },
+            "required": ["razon", "urgencia"],
+        },
+    },
+]
 
 
-def obtener_horario() -> dict:
-    """Retorna el horario de atención del negocio y si está abierto en este momento."""
-    info = cargar_info_negocio()
-    horario = info.get("negocio", {}).get("horario", "Lunes a Sábado de 9:00 AM a 6:00 PM")
+# ── Dispatcher async ──────────────────────────────────────────────────────────
 
-    # Calcular si está dentro del horario actual (hora de México)
-    ahora = datetime.now()
-    dia_semana = ahora.weekday()  # 0=Lunes, 6=Domingo
-    hora_actual = ahora.hour
+async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_urls: dict) -> dict:
+    """Ejecuta una herramienta y retorna el resultado como dict."""
 
-    # Lunes (0) a Sábado (5), de 9 a 18
-    esta_abierto = (dia_semana <= 5) and (9 <= hora_actual < 18)
-
-    return {
-        "horario": horario,
-        "esta_abierto": esta_abierto,
-        "dia_actual": ahora.strftime("%A"),
-        "hora_actual": ahora.strftime("%H:%M"),
-    }
-
-
-def buscar_en_knowledge(consulta: str) -> str:
-    """
-    Busca información relevante en los archivos de /knowledge.
-    Retorna el contenido más relevante encontrado.
-    """
-    resultados = []
-    knowledge_dir = "knowledge"
-
-    if not os.path.exists(knowledge_dir):
-        return "No hay archivos de conocimiento disponibles."
-
-    for archivo in os.listdir(knowledge_dir):
-        ruta = os.path.join(knowledge_dir, archivo)
-        if archivo.startswith(".") or not os.path.isfile(ruta):
-            continue
+    if name == "buscar_cliente":
+        nombre = inputs.get("nombre", "")
         try:
-            with open(ruta, "r", encoding="utf-8") as f:
-                contenido = f.read()
-                # Búsqueda simple por coincidencia de texto
-                if consulta.lower() in contenido.lower():
-                    resultados.append(f"[{archivo}]: {contenido[:500]}")
-        except (UnicodeDecodeError, IOError):
-            continue
+            clientes = await state.sicas.search_customers(nombre)
+        except Exception as e:
+            logger.error("buscar_cliente error: %s", e)
+            return {"error": "No se pudo conectar con el sistema. Intenta más tarde."}
 
-    if resultados:
-        return "\n---\n".join(resultados)
-    return "No encontré información específica sobre eso en mis archivos."
+        if not clientes:
+            return {"clientes": [], "total": 0, "mensaje": f"No se encontraron clientes con el nombre '{nombre}'."}
 
+        resumen = [
+            {
+                "IDCli": c.get("IDCli"),
+                "NombreCompleto": c.get("NombreCompleto", ""),
+                "RFC": c.get("RFC", ""),
+            }
+            for c in clientes[:5]
+        ]
+        return {"clientes": resumen, "total": len(resumen)}
 
-def obtener_info_reembolso() -> str:
-    """
-    Retorna los pasos y documentos necesarios para iniciar un reembolso.
-    Esta información se incluye en la respuesta del agente cuando el cliente pregunta por reembolsos.
-    """
-    return """
-Para iniciar un reembolso de gastos médicos necesita:
+    if name == "obtener_polizas":
+        id_cli = inputs.get("id_cli")
+        try:
+            polizas = await state.sicas.get_policies(id_cli)
+        except Exception as e:
+            logger.error("obtener_polizas error: %s", e)
+            return {"error": "No se pudo obtener las pólizas. Intenta más tarde."}
 
-1. Formato de reembolso de su aseguradora (le ayudamos a obtenerlo)
-2. Facturas originales o CFDI de los gastos médicos
-3. Recetas médicas correspondientes
-4. Resumen médico o estudios de laboratorio (según aplique)
-5. Identificación oficial (INE o pasaporte)
-6. Estado de cuenta bancario para el depósito del reembolso
+        if not polizas:
+            return {"polizas": [], "total": 0, "mensaje": "Este cliente no tiene pólizas registradas."}
 
-El tiempo de respuesta varía según la aseguradora, generalmente entre 10 y 30 días hábiles.
+        resumen = [
+            {
+                "IDDocto": p.get("IDDocto"),
+                "Documento": p.get("Documento", ""),
+                "CiaNombre": p.get("CiaNombre", ""),
+                "SRamoNombre": p.get("SRamoNombre", ""),
+                "FDesde": p.get("FDesde", ""),
+                "FHasta": p.get("FHasta", ""),
+                "Status_TXT": p.get("Status_TXT", ""),
+            }
+            for p in polizas
+        ]
+        return {"polizas": resumen, "total": len(resumen)}
 
-Para iniciar el proceso, contacte a su asesor en Gonzalez Loredo Asesoría Patrimonial con su número de póliza.
-""".strip()
+    if name == "obtener_documento":
+        id_docto = inputs.get("id_docto")
+        numero_poliza = inputs.get("numero_poliza", "")
+        try:
+            archivos = await state.sicas.get_policy_document_link(id_docto)
+        except Exception as e:
+            logger.error("obtener_documento error: %s", e)
+            return {"error": "No se pudo obtener el documento. Intenta más tarde."}
 
+        if not archivos:
+            return {
+                "archivos": [],
+                "mensaje": (
+                    f"La póliza {numero_poliza} no tiene documentos digitales disponibles. "
+                    "Es posible que el documento aún no haya sido subido al sistema."
+                ),
+            }
 
-def obtener_info_programacion_medica() -> str:
-    """
-    Retorna los pasos para solicitar una programación médica con red de proveedores.
-    """
-    return """
-Para agendar una consulta o procedimiento médico con la red de proveedores:
+        enlaces = [
+            {
+                "nombre": f"{f.get('FileName', 'documento')}.{f.get('Ext', 'pdf')}",
+                "url": f.get("PathWWW", ""),
+                "tamaño": f.get("SizeFile", ""),
+            }
+            for f in archivos
+        ]
+        return {"poliza": numero_poliza, "archivos": enlaces}
 
-1. Contáctenos con al menos 48 horas de anticipación
-2. Tenga a la mano:
-   - Nombre completo del paciente
-   - Número de póliza
-   - Tipo de consulta o procedimiento requerido
-   - Especialidad médica o médico de su preferencia
-   - Ciudad y fecha preferida
-3. Nuestro equipo gestionará la autorización con su aseguradora
-4. Le confirmaremos el proveedor en red y los detalles de la cita
+    if name == "obtener_formulario":
+        tipo = inputs.get("tipo_formulario")
+        url = form_urls.get(tipo)
+        if not url:
+            return {"error": f"El formulario '{tipo}' no está configurado. Contacte a su asesor."}
+        nombres = {
+            "reembolso": "Formulario de Reembolso de Gastos Médicos",
+            "procedimiento_medico": "Formulario de Autorización de Procedimiento Médico",
+        }
+        return {"tipo": tipo, "nombre": nombres.get(tipo, tipo), "url": url}
 
-Recuerde: para emergencias médicas, contacte directamente la línea de emergencias de su aseguradora.
-""".strip()
+    if name == "notificar_agente":
+        razon = inputs.get("razon", "")
+        urgencia = inputs.get("urgencia", "normal")
+        return {
+            "razon": razon,
+            "urgencia": urgencia,
+            "mensaje_cliente": (
+                "Entendido. Voy a conectarle con uno de nuestros asesores para que le ayude. "
+                "En breve se pondrán en contacto con usted. 🙏"
+            ),
+            "mensaje_agente": (
+                f"{'🚨 URGENTE' if urgencia == 'urgente' else '🔔 Atención requerida'}\n"
+                f"Motivo: {razon}"
+            ),
+        }
+
+    return {"error": f"Herramienta desconocida: {name}"}
