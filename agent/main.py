@@ -23,6 +23,7 @@ load_dotenv()
 # Solo estos números recibirán respuesta del agente
 NUMEROS_AUTORIZADOS = {
     "528111828879",
+    "17378889040",
 }
 
 # Configuración de logging según entorno
