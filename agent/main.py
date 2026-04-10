@@ -24,13 +24,13 @@ load_dotenv()
 
 # Lista blanca de números autorizados (código de país, sin +)
 NUMEROS_AUTORIZADOS = {
-    "528111828879",
+    # "528111828879",
     "17378889040",
-    "528117403058",
-    "5218117403058",
+    # "528117403058",
+    # "5218117403058",
     # "14253709886",
-    "5218181764764",
-    "5218111828879",
+    # "5218181764764",
+    # "5218111828879",
 }
 
 # Números de auto-chat: responde aunque el mensaje sea "from_me"
