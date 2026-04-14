@@ -24,13 +24,13 @@ load_dotenv()
 
 # Lista blanca de números autorizados (código de país, sin +)
 NUMEROS_AUTORIZADOS = {
-    # "528111828879",
+    "528111828879",
     "17378889040",
-    # "528117403058",
-    # "5218117403058",
-    # "14253709886",
-    # "5218181764764",
-    # "5218111828879",
+    "528117403058",
+    "5218117403058",
+    "14253709886",
+    "5218181764764",
+    "5218111828879",
 }
 
 # Números de auto-chat: responde aunque el mensaje sea "from_me"
@@ -57,8 +57,16 @@ AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER", "")
 # En Railway: https://tu-app.up.railway.app/forms/...
 _PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
 FORM_URLS = {
-    "reembolso": os.getenv("FORM_URL_REEMBOLSO", f"{_PUBLIC_URL}/forms/solicitud_siniestros.pdf"),
-    "procedimiento_medico": os.getenv("FORM_URL_PROCEDIMIENTO", f"{_PUBLIC_URL}/forms/solicitud_siniestros.pdf"),
+    "axa": {
+        "reembolso":           f"{_PUBLIC_URL}/forms/AXA/solicitud_siniestros.pdf",
+        "procedimiento_medico": f"{_PUBLIC_URL}/forms/AXA/solicitud_siniestros.pdf",
+        "informe_medico":      f"{_PUBLIC_URL}/forms/AXA/informe_medico.pdf",
+    },
+    "seguros_monterrey": {
+        "reembolso":        f"{_PUBLIC_URL}/forms/seguros_monterrey/solicitud_reembolso.pdf",
+        "informe_medico":   f"{_PUBLIC_URL}/forms/seguros_monterrey/informe_medico.pdf",
+        "aviso_accidente":  f"{_PUBLIC_URL}/forms/seguros_monterrey/aviso_accidente.pdf",
+    },
 }
 
 # Mensaje cuando el bot está pausado (esperando asesor)

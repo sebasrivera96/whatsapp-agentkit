@@ -73,22 +73,36 @@ TOOLS = [
     {
         "name": "obtener_formulario",
         "description": (
-            "Devuelve el enlace al formulario PDF que necesita el cliente. "
-            "Usar cuando pida formularios de reembolso o para programar un procedimiento médico."
+            "Devuelve el enlace al formulario PDF de la aseguradora correcta. "
+            "SIEMPRE especificar la compañía del cliente. "
+            "Para programación de cirugía (AXA), llamar DOS veces: 'procedimiento_medico' e 'informe_medico'. "
+            "Si no sabes la compañía, pregunta al cliente antes de llamar este tool."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "tipo_formulario": {
                     "type": "string",
-                    "enum": ["reembolso", "procedimiento_medico"],
+                    "enum": ["reembolso", "procedimiento_medico", "informe_medico", "aviso_accidente"],
                     "description": (
-                        "'reembolso' para reembolso de gastos médicos. "
-                        "'procedimiento_medico' para autorización de cirugía u hospitalización."
+                        "'reembolso': cliente YA pagó y quiere que la aseguradora le reembolse. "
+                        "'procedimiento_medico': cliente VA A operarse, necesita autorización previa (solo AXA). "
+                        "'informe_medico': el médico tratante llena un informe clínico (AXA y Seguros Monterrey). "
+                        "'aviso_accidente': notificación de accidente (solo Seguros Monterrey New York Life)."
                     ),
-                }
+                },
+                "compania": {
+                    "type": "string",
+                    "enum": ["axa", "seguros_monterrey"],
+                    "description": (
+                        "Aseguradora del cliente. Determinada por el campo CiaNombre de la póliza "
+                        "o por lo que el cliente mencione. "
+                        "'axa' para AXA Seguros. "
+                        "'seguros_monterrey' para Seguros Monterrey New York Life (SMNYL)."
+                    ),
+                },
             },
-            "required": ["tipo_formulario"],
+            "required": ["tipo_formulario", "compania"],
         },
     },
     {
@@ -200,14 +214,31 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
 
     if name == "obtener_formulario":
         tipo = inputs.get("tipo_formulario")
-        url = form_urls.get(tipo)
+        compania_input = inputs.get("compania", "").lower()
+
+        # Normalizar nombre de compañía a clave interna
+        if "monterrey" in compania_input or "smnyl" in compania_input:
+            compania_key = "seguros_monterrey"
+        elif "axa" in compania_input:
+            compania_key = "axa"
+        else:
+            compania_key = compania_input
+
+        urls_compania = form_urls.get(compania_key, {})
+        url = urls_compania.get(tipo)
+
         if not url:
-            return {"error": f"El formulario '{tipo}' no está configurado. Contacte a su asesor."}
+            compania_nombre = {"axa": "AXA", "seguros_monterrey": "Seguros Monterrey New York Life"}.get(compania_key, compania_key)
+            return {"error": f"El formulario '{tipo}' no está disponible para {compania_nombre}. Contacte a su asesor."}
+
         nombres = {
             "reembolso": "Formulario de Reembolso de Gastos Médicos",
-            "procedimiento_medico": "Formulario de Autorización de Procedimiento Médico",
+            "procedimiento_medico": "Formulario de Solicitud de Programación / Procedimiento Médico",
+            "informe_medico": "Informe Médico",
+            "aviso_accidente": "Aviso de Accidente",
         }
-        return {"tipo": tipo, "nombre": nombres.get(tipo, tipo), "url": url}
+        compania_display = {"axa": "AXA", "seguros_monterrey": "Seguros Monterrey New York Life"}.get(compania_key, compania_key)
+        return {"tipo": tipo, "compania": compania_display, "nombre": nombres.get(tipo, tipo), "url": url}
 
     if name == "notificar_agente":
         razon = inputs.get("razon", "")
