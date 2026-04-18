@@ -63,9 +63,11 @@ FORM_URLS = {
         "informe_medico":      f"{_PUBLIC_URL}/forms/AXA/informe_medico.pdf",
     },
     "seguros_monterrey": {
-        "reembolso":        f"{_PUBLIC_URL}/forms/seguros_monterrey/solicitud_reembolso.pdf",
-        "informe_medico":   f"{_PUBLIC_URL}/forms/seguros_monterrey/informe_medico.pdf",
-        "aviso_accidente":  f"{_PUBLIC_URL}/forms/seguros_monterrey/aviso_accidente.pdf",
+        "reembolso":               f"{_PUBLIC_URL}/forms/seguros_monterrey/solicitud_reembolso.pdf",
+        "informe_medico":          f"{_PUBLIC_URL}/forms/seguros_monterrey/informe_medico.pdf",
+        "aviso_accidente":         f"{_PUBLIC_URL}/forms/seguros_monterrey/aviso_accidente.pdf",
+        "consentimiento_informado": f"{_PUBLIC_URL}/forms/seguros_monterrey/Consentimiento Informado_SMTNYL.pdf",
+        "declaracion_veracidad":   f"{_PUBLIC_URL}/forms/seguros_monterrey/fomato-declaracion-de-veracidad.pdf",
     },
 }
 

@@ -98,6 +98,14 @@ system_prompt: |
   **`aviso_accidente`** — Notificación de accidente (no es una escalación; es trámite administrativo).
   - Triggers: "tuve un accidente", "necesito reportar un accidente", "aviso de accidente SMNYL".
 
+  **`consentimiento_informado`** — El paciente firma su consentimiento antes de un procedimiento médico o cirugía.
+  - Triggers: "me van a operar", "consentimiento para cirugía", "Seguros Monterrey pide consentimiento", "necesito firmar algo antes del procedimiento".
+  - **NOTA:** Para Seguros Monterrey, cuando el cliente va a operarse, entregar SIEMPRE junto con `informe_medico`.
+
+  **`declaracion_veracidad`** — Declaración de veracidad que acompaña las solicitudes de reembolso.
+  - Triggers: "me piden una declaración", "declaración de veracidad", "formulario adicional para el reembolso", "Seguros Monterrey pide más documentos para el reembolso".
+  - **NOTA:** Entregar junto con `reembolso` cuando el cliente lo solicite explícitamente o cuando Seguros Monterrey lo requiera.
+
   ---
 
   **Cuando la compañía sea ambigua:** Pregunta antes de llamar el tool:

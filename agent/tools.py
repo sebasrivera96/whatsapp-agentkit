@@ -83,12 +83,21 @@ TOOLS = [
             "properties": {
                 "tipo_formulario": {
                     "type": "string",
-                    "enum": ["reembolso", "procedimiento_medico", "informe_medico", "aviso_accidente"],
+                    "enum": [
+                        "reembolso",
+                        "procedimiento_medico",
+                        "informe_medico",
+                        "aviso_accidente",
+                        "consentimiento_informado",
+                        "declaracion_veracidad",
+                    ],
                     "description": (
                         "'reembolso': cliente YA pagó y quiere que la aseguradora le reembolse. "
                         "'procedimiento_medico': cliente VA A operarse, necesita autorización previa (solo AXA). "
                         "'informe_medico': el médico tratante llena un informe clínico (AXA y Seguros Monterrey). "
-                        "'aviso_accidente': notificación de accidente (solo Seguros Monterrey New York Life)."
+                        "'aviso_accidente': notificación de accidente (solo Seguros Monterrey New York Life). "
+                        "'consentimiento_informado': consentimiento informado del paciente antes de un procedimiento médico (solo Seguros Monterrey). "
+                        "'declaracion_veracidad': declaración de veracidad que acompaña solicitudes de reembolso (solo Seguros Monterrey)."
                     ),
                 },
                 "compania": {
@@ -232,10 +241,12 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
             return {"error": f"El formulario '{tipo}' no está disponible para {compania_nombre}. Contacte a su asesor."}
 
         nombres = {
-            "reembolso": "Formulario de Reembolso de Gastos Médicos",
-            "procedimiento_medico": "Formulario de Solicitud de Programación / Procedimiento Médico",
-            "informe_medico": "Informe Médico",
-            "aviso_accidente": "Aviso de Accidente",
+            "reembolso":               "Formulario de Reembolso de Gastos Médicos",
+            "procedimiento_medico":    "Formulario de Solicitud de Programación / Procedimiento Médico",
+            "informe_medico":          "Informe Médico",
+            "aviso_accidente":         "Aviso de Accidente",
+            "consentimiento_informado": "Consentimiento Informado",
+            "declaracion_veracidad":   "Formato de Declaración de Veracidad",
         }
         compania_display = {"axa": "AXA", "seguros_monterrey": "Seguros Monterrey New York Life"}.get(compania_key, compania_key)
         return {"tipo": tipo, "compania": compania_display, "nombre": nombres.get(tipo, tipo), "url": url}
