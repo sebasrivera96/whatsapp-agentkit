@@ -8,6 +8,8 @@ La IA usa tool-use para consultar pólizas en SICAS y escalar a asesores cuando 
 """
 
 import os
+import time
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
@@ -69,7 +71,41 @@ FORM_URLS = {
         "consentimiento_informado": f"{_PUBLIC_URL}/forms/seguros_monterrey/Consentimiento Informado_SMTNYL.pdf",
         "declaracion_veracidad":   f"{_PUBLIC_URL}/forms/seguros_monterrey/fomato-declaracion-de-veracidad.pdf",
     },
+    "mapfre": {
+        "reembolso":           f"{_PUBLIC_URL}/forms/Mapfre/solicitud_reembolso.pdf",
+        "procedimiento_medico": f"{_PUBLIC_URL}/forms/Mapfre/solicitud_programacion.pdf",
+        "informe_medico":      f"{_PUBLIC_URL}/forms/Mapfre/informe_medico.pdf",
+        "aviso_accidente":     f"{_PUBLIC_URL}/forms/Mapfre/aviso_accidente.pdf",
+        "kyc_siniestro":       f"{_PUBLIC_URL}/forms/Mapfre/kyc_siniestro.pdf",
+    },
 }
+
+# ── Cache anti-bucle: registra mensajes enviados por el bot ──────────────────
+_mensajes_enviados: dict[str, float] = {}
+_DEDUP_TTL = 60  # ignorar ecos durante 60 segundos
+
+
+def _msg_key(telefono: str, texto: str) -> str:
+    """Genera clave única para un par (teléfono, texto)."""
+    h = hashlib.md5(texto.encode()).hexdigest()
+    return f"{telefono}:{h}"
+
+
+def _registrar_enviado(telefono: str, texto: str):
+    """Registra un mensaje enviado por el bot para evitar procesarlo como eco."""
+    _mensajes_enviados[_msg_key(telefono, texto)] = time.time()
+    # Limpiar entradas viejas
+    ahora = time.time()
+    for k in list(_mensajes_enviados):
+        if ahora - _mensajes_enviados[k] > _DEDUP_TTL:
+            del _mensajes_enviados[k]
+
+
+def _es_eco(telefono: str, texto: str) -> bool:
+    """Retorna True si el mensaje fue enviado recientemente por el bot."""
+    ts = _mensajes_enviados.get(_msg_key(telefono, texto))
+    return ts is not None and time.time() - ts < _DEDUP_TTL
+
 
 # Mensaje cuando el bot está pausado (esperando asesor)
 PAUSED_MSG = (
@@ -146,6 +182,12 @@ async def webhook_handler(request: Request):
 
             # Ignorar mensajes propios excepto auto-chat autorizado
             if msg.es_propio and numero_limpio not in SELF_CHAT_NUMEROS:
+                logger.debug(f"Ignorado (from_me): {msg.telefono}")
+                continue
+
+            # Anti-bucle: ignorar ecos de mensajes que el bot envió
+            if _es_eco(msg.telefono, msg.texto):
+                logger.debug(f"Ignorado (eco detectado): {msg.telefono}")
                 continue
 
             # Verificar lista blanca
@@ -160,6 +202,7 @@ async def webhook_handler(request: Request):
 
             # Si el bot está pausado (esperando asesor), enviar mensaje de espera
             if state.mode == "paused":
+                _registrar_enviado(msg.telefono, PAUSED_MSG)
                 await proveedor.enviar_mensaje(msg.telefono, PAUSED_MSG)
                 continue
 
@@ -174,6 +217,9 @@ async def webhook_handler(request: Request):
                 notif_asesor = f"📞 Cliente: {msg.telefono}\n{msg_asesor}"
                 await proveedor.enviar_mensaje(AGENT_WHATSAPP_NUMBER, notif_asesor)
                 logger.info(f"Asesor notificado ({AGENT_WHATSAPP_NUMBER}): {msg_asesor}")
+
+            # Registrar en cache anti-bucle ANTES de enviar
+            _registrar_enviado(msg.telefono, respuesta)
 
             # Enviar respuesta al cliente
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
