@@ -376,6 +376,7 @@ Construido con [Claude Code](https://claude.ai/claude-code) para builders de LAT
 MIT — Usa este proyecto como quieras, para lo que quieras.
 
 ## TODOs
+- Solo empezar a procesar mensajes que lleguen después de que el agente se active.
 - Agregar lista de Hospitales por Estados para que el agente IA pueda responder.
 - Filtrar información no solo por persona física sino también por persona moral.
     - Revisar Referencias/Concepto

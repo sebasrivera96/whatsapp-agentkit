@@ -90,24 +90,27 @@ TOOLS = [
                         "aviso_accidente",
                         "consentimiento_informado",
                         "declaracion_veracidad",
+                        "kyc_siniestro",
                     ],
                     "description": (
                         "'reembolso': cliente YA pagó y quiere que la aseguradora le reembolse. "
-                        "'procedimiento_medico': cliente VA A operarse, necesita autorización previa (solo AXA). "
-                        "'informe_medico': el médico tratante llena un informe clínico (AXA y Seguros Monterrey). "
-                        "'aviso_accidente': notificación de accidente (solo Seguros Monterrey New York Life). "
+                        "'procedimiento_medico': cliente VA A operarse, necesita autorización previa (AXA y Mapfre). "
+                        "'informe_medico': el médico tratante llena un informe clínico (AXA, Seguros Monterrey y Mapfre). "
+                        "'aviso_accidente': notificación de accidente (Seguros Monterrey y Mapfre). "
                         "'consentimiento_informado': consentimiento informado del paciente antes de un procedimiento médico (solo Seguros Monterrey). "
-                        "'declaracion_veracidad': declaración de veracidad que acompaña solicitudes de reembolso (solo Seguros Monterrey)."
+                        "'declaracion_veracidad': declaración de veracidad que acompaña solicitudes de reembolso (solo Seguros Monterrey). "
+                        "'kyc_siniestro': formulario KYC (Know Your Customer) para verificación de identidad en siniestros (solo Mapfre)."
                     ),
                 },
                 "compania": {
                     "type": "string",
-                    "enum": ["axa", "seguros_monterrey"],
+                    "enum": ["axa", "seguros_monterrey", "mapfre"],
                     "description": (
                         "Aseguradora del cliente. Determinada por el campo CiaNombre de la póliza "
                         "o por lo que el cliente mencione. "
                         "'axa' para AXA Seguros. "
-                        "'seguros_monterrey' para Seguros Monterrey New York Life (SMNYL)."
+                        "'seguros_monterrey' para Seguros Monterrey New York Life (SMNYL). "
+                        "'mapfre' para Mapfre Seguros."
                     ),
                 },
             },
@@ -230,6 +233,8 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
             compania_key = "seguros_monterrey"
         elif "axa" in compania_input:
             compania_key = "axa"
+        elif "mapfre" in compania_input:
+            compania_key = "mapfre"
         else:
             compania_key = compania_input
 
@@ -237,7 +242,11 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
         url = urls_compania.get(tipo)
 
         if not url:
-            compania_nombre = {"axa": "AXA", "seguros_monterrey": "Seguros Monterrey New York Life"}.get(compania_key, compania_key)
+            compania_nombre = {
+                "axa": "AXA",
+                "seguros_monterrey": "Seguros Monterrey New York Life",
+                "mapfre": "Mapfre Seguros",
+            }.get(compania_key, compania_key)
             return {"error": f"El formulario '{tipo}' no está disponible para {compania_nombre}. Contacte a su asesor."}
 
         nombres = {
@@ -247,8 +256,13 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
             "aviso_accidente":         "Aviso de Accidente",
             "consentimiento_informado": "Consentimiento Informado",
             "declaracion_veracidad":   "Formato de Declaración de Veracidad",
+            "kyc_siniestro":           "Formulario KYC — Siniestro General",
         }
-        compania_display = {"axa": "AXA", "seguros_monterrey": "Seguros Monterrey New York Life"}.get(compania_key, compania_key)
+        compania_display = {
+            "axa": "AXA",
+            "seguros_monterrey": "Seguros Monterrey New York Life",
+            "mapfre": "Mapfre Seguros",
+        }.get(compania_key, compania_key)
         return {"tipo": tipo, "compania": compania_display, "nombre": nombres.get(tipo, tipo), "url": url}
 
     if name == "notificar_agente":
