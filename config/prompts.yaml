@@ -152,6 +152,12 @@ system_prompt: |
   Lunes a Sábado de 9:00 AM a 6:00 PM (hora de México).
   Fuera de horario: "Gracias por comunicarse con Gonzalez Loredo Asesoría Patrimonial. Nuestro horario es de lunes a sábado de 9:00 AM a 6:00 PM. Un asesor le atenderá en cuanto estemos disponibles."
 
+  ## Cierre de sesión
+  Cuando el cliente indique que no necesita más ayuda (por ejemplo: "eso es todo",
+  "no, gracias", "ya no necesito nada", "muchas gracias, eso sería todo", "es todo por ahora"),
+  despídete de manera profesional y luego usa la herramienta `cerrar_sesion` para cerrar
+  formalmente la sesión. Tu mensaje de despedida debe ser breve y cordial.
+
   ## Estilo de comunicación
   - Tono profesional y formal, use "usted" siempre
   - Mensajes en WhatsApp CORTOS y directos — máximo 3-4 líneas por mensaje
@@ -163,3 +169,8 @@ system_prompt: |
 
 fallback_message: "Disculpe, no logré entender su mensaje. ¿Podría reformularlo? Estoy aquí para orientarle sobre su póliza, reembolsos, programaciones médicas o cualquier duda relacionada con sus seguros."
 error_message: "Lo sentimos, estamos experimentando dificultades técnicas en este momento. Por favor intente nuevamente en unos minutos o contáctenos directamente por este medio."
+
+# Mensajes de timeout de sesión
+timeout_warning_message: "¿Sigue ahí? Esta sesión se cerrará en 2.5 minutos si no recibimos respuesta."
+timeout_close_message: "La sesión ha sido cerrada por inactividad. Si necesita más ayuda, envíenos un mensaje y con gusto le atendemos nuevamente."
+graceful_close_message: "Gracias por comunicarse con Gonzalez Loredo Asesoría Patrimonial. ¡Que tenga excelente día! Si necesita algo más en el futuro, no dude en escribirnos."

@@ -18,15 +18,18 @@ from agent.sicas_client import SICASClient
 class ConversationState:
     phone: str
     messages: list[dict] = field(default_factory=list)
-    mode: str = "ai"                       # "ai" | "paused"
+    mode: str = "ai"                       # "ai" | "paused" | "closed"
     customer_context: dict | None = None   # {"id_cli": int, "nombre": str} una vez identificado
     last_activity: float = field(default_factory=time.time)
     sicas: SICASClient = field(repr=False, default=None)
+    chat_id: str = ""                      # ID raw del chat (ej: "528111828879@s.whatsapp.net")
+    warning_sent: bool = False             # True si ya se envió aviso de inactividad
 
     def append_user_message(self, text: str):
         """Agrega un mensaje del usuario al historial."""
         self.messages.append({"role": "user", "content": text})
         self.last_activity = time.time()
+        self.warning_sent = False
 
     def trim_to_window(self, max_messages: int = 20):
         """Mantiene a lo sumo max_messages, preservando pares completos."""
@@ -64,6 +67,18 @@ class ConversationManager:
         """Cambia el modo de un estado existente (no lo crea si no existe)."""
         if phone in self._states:
             self._states[phone].mode = mode
+
+    def get_active_states(self) -> list["ConversationState"]:
+        """Retorna estados con modo 'ai' (excluye paused y closed)."""
+        return [s for s in self._states.values() if s.mode == "ai"]
+
+    def close_session(self, phone: str):
+        """Cierra una sesión: marca como closed y limpia historial."""
+        if phone in self._states:
+            state = self._states[phone]
+            state.mode = "closed"
+            state.messages.clear()
+            state.customer_context = None
 
     def prune_inactive(self, max_age_seconds: int = 86400):
         """Elimina conversaciones inactivas por más de max_age_seconds (default: 24h)."""

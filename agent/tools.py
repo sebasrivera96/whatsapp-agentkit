@@ -141,6 +141,25 @@ TOOLS = [
             "required": ["razon", "urgencia"],
         },
     },
+    {
+        "name": "cerrar_sesion",
+        "description": (
+            "Cierra la sesión de conversación con el cliente. "
+            "Usar ÚNICAMENTE cuando el cliente indique explícitamente que no necesita más ayuda, "
+            "por ejemplo: 'eso es todo', 'no gracias', 'ya no necesito nada', 'muchas gracias, eso sería todo'. "
+            "IMPORTANTE: Despídete del cliente en tu mensaje de texto ANTES de llamar esta herramienta."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "motivo": {
+                    "type": "string",
+                    "description": "Breve descripción de por qué se cierra (ej: 'cliente indicó que no necesita más ayuda').",
+                },
+            },
+            "required": ["motivo"],
+        },
+    },
 ]
 
 
@@ -278,6 +297,18 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
             "mensaje_agente": (
                 f"{'🚨 URGENTE' if urgencia == 'urgente' else '🔔 Atención requerida'}\n"
                 f"Motivo: {razon}"
+            ),
+        }
+
+    if name == "cerrar_sesion":
+        motivo = inputs.get("motivo", "")
+        logger.info(f"Sesión cerrada por herramienta: {motivo}")
+        return {
+            "cerrar": True,
+            "motivo": motivo,
+            "mensaje_cliente": (
+                "Gracias por comunicarse con Gonzalez Loredo Asesoría Patrimonial. "
+                "¡Que tenga excelente día! Si necesita algo más en el futuro, no dude en escribirnos."
             ),
         }
 

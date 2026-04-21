@@ -144,6 +144,12 @@ async def generar_respuesta(
                     state.mode = "paused"
                     return result["mensaje_cliente"], result.get("mensaje_agente")
 
+                # Cierre de sesión: marcar como closed, retornar despedida de Claude
+                if block.name == "cerrar_sesion":
+                    state.mode = "closed"
+                    texto_despedida = _extract_text(response.content)
+                    return texto_despedida or result["mensaje_cliente"], None
+
             state.messages.append({"role": "user", "content": tool_results})
 
     logger.warning("Loop agentic alcanzó el límite de iteraciones para %s", state.phone)

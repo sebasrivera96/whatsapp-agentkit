@@ -9,6 +9,7 @@ La IA usa tool-use para consultar pólizas en SICAS y escalar a asesores cuando 
 
 import os
 import time
+import asyncio
 import hashlib
 import logging
 from contextlib import asynccontextmanager
@@ -17,10 +18,11 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
-from agent.brain import generar_respuesta
+from agent.brain import generar_respuesta, _cargar_mensaje
 from agent.memory import inicializar_db
 from agent.conversation_manager import ConversationManager
 from agent.providers import obtener_proveedor
+from agent.session_monitor import session_monitor_loop
 
 load_dotenv()
 
@@ -126,7 +128,34 @@ async def lifespan(app: FastAPI):
     logger.info(f"Proveedor de WhatsApp: {proveedor.__class__.__name__}")
     sicas_url = os.getenv("SICAS_API_URL", "(no configurado)")
     logger.info(f"SICAS API: {sicas_url}")
+
+    # Iniciar monitor de sesiones (timeouts por inactividad)
+    warning_msg = _cargar_mensaje(
+        "timeout_warning_message",
+        "¿Sigue ahí? Esta sesión se cerrará en 2.5 minutos si no recibimos respuesta.",
+    )
+    close_msg = _cargar_mensaje(
+        "timeout_close_message",
+        "La sesión ha sido cerrada por inactividad. Si necesita más ayuda, envíenos un mensaje y con gusto le atendemos nuevamente.",
+    )
+    monitor_task = asyncio.create_task(
+        session_monitor_loop(
+            manager=conversation_manager,
+            send_message=proveedor.enviar_mensaje,
+            register_sent=_registrar_enviado,
+            warning_message=warning_msg,
+            close_message=close_msg,
+        )
+    )
+    logger.info("Session monitor iniciado")
+
     yield
+
+    monitor_task.cancel()
+    try:
+        await monitor_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(
@@ -199,6 +228,13 @@ async def webhook_handler(request: Request):
 
             # Obtener o crear estado de conversación
             state = conversation_manager.get_or_create(numero_limpio)
+            state.chat_id = msg.telefono
+
+            # Si la sesión fue cerrada, iniciar una nueva
+            if state.mode == "closed":
+                conversation_manager.reset(numero_limpio)
+                state = conversation_manager.get_or_create(numero_limpio)
+                state.chat_id = msg.telefono
 
             # Si el bot está pausado (esperando asesor), enviar mensaje de espera
             if state.mode == "paused":
@@ -224,6 +260,10 @@ async def webhook_handler(request: Request):
             # Enviar respuesta al cliente
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
             logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
+
+            # Si el agente cerró la sesión (cerrar_sesion tool), limpiar estado
+            if state.mode == "closed":
+                logger.info(f"Sesión cerrada por el cliente: {numero_limpio}")
 
         return {"status": "ok"}
 
