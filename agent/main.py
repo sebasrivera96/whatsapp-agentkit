@@ -236,11 +236,27 @@ async def webhook_handler(request: Request):
                 state = conversation_manager.get_or_create(numero_limpio)
                 state.chat_id = msg.telefono
 
-            # Si el bot está pausado (esperando asesor), enviar mensaje de espera
+            # Si el bot está pausado (esperando asesor):
+            # - Primer mensaje: enviar aviso de que el asesor fue notificado
+            # - Segundo mensaje en adelante: reiniciar sesión para nueva consulta
             if state.mode == "paused":
-                _registrar_enviado(msg.telefono, PAUSED_MSG)
-                await proveedor.enviar_mensaje(msg.telefono, PAUSED_MSG)
-                continue
+                if not state.paused_msg_sent:
+                    state.paused_msg_sent = True
+                    _registrar_enviado(msg.telefono, PAUSED_MSG)
+                    await proveedor.enviar_mensaje(msg.telefono, PAUSED_MSG)
+                    continue
+                else:
+                    # Reiniciar sesión para permitir nueva consulta
+                    conversation_manager.reset(numero_limpio)
+                    state = conversation_manager.get_or_create(numero_limpio)
+                    state.chat_id = msg.telefono
+                    reopen_msg = (
+                        "Su asesor ha sido notificado sobre su consulta anterior. "
+                        "Mientras tanto, he iniciado una nueva sesión para que pueda realizar otra consulta. "
+                        "¿En qué le puedo ayudar?"
+                    )
+                    _registrar_enviado(msg.telefono, reopen_msg)
+                    await proveedor.enviar_mensaje(msg.telefono, reopen_msg)
 
             # Agregar mensaje del usuario al historial
             state.append_user_message(msg.texto)

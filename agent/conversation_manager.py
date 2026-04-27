@@ -24,6 +24,7 @@ class ConversationState:
     sicas: SICASClient = field(repr=False, default=None)
     chat_id: str = ""                      # ID raw del chat (ej: "528111828879@s.whatsapp.net")
     warning_sent: bool = False             # True si ya se envió aviso de inactividad
+    paused_msg_sent: bool = False          # True si ya se envió el mensaje de "asesor notificado"
 
     def append_user_message(self, text: str):
         """Agrega un mensaje del usuario al historial."""
