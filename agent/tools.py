@@ -7,9 +7,32 @@ que ejecuta cada llamada contra el CRM SICAS.
 """
 
 import logging
+import yaml
 from agent.conversation_manager import ConversationState
 
 logger = logging.getLogger("agentkit")
+
+
+def _cargar_forms_config() -> dict:
+    """Carga la configuración de formularios desde config/forms.yaml."""
+    try:
+        with open("config/forms.yaml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        logger.error("config/forms.yaml no encontrado")
+        return {}
+
+
+def _normalizar_compania(compania_input: str) -> str:
+    """Normaliza el nombre de la compañía a su clave interna."""
+    compania_input = compania_input.lower()
+    if "monterrey" in compania_input or "smnyl" in compania_input:
+        return "seguros_monterrey"
+    elif "axa" in compania_input:
+        return "axa"
+    elif "mapfre" in compania_input:
+        return "mapfre"
+    return compania_input
 
 # ── Definiciones de herramientas para la Claude API ──────────────────────────
 
@@ -71,50 +94,41 @@ TOOLS = [
         },
     },
     {
-        "name": "obtener_formulario",
+        "name": "obtener_formularios",
         "description": (
-            "Devuelve el enlace al formulario PDF de la aseguradora correcta. "
-            "SIEMPRE especificar la compañía del cliente. "
-            "Para programación de cirugía (AXA), llamar DOS veces: 'procedimiento_medico' e 'informe_medico'. "
-            "Si no sabes la compañía, pregunta al cliente antes de llamar este tool."
+            "Devuelve los formularios PDF necesarios para un trámite de seguro. "
+            "El sistema determina automáticamente qué formularios entregar (puede ser más de uno). "
+            "Confirma la compañía y el tipo de trámite antes de llamar."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "tipo_formulario": {
-                    "type": "string",
-                    "enum": [
-                        "reembolso",
-                        "procedimiento_medico",
-                        "informe_medico",
-                        "aviso_accidente",
-                        "consentimiento_informado",
-                        "declaracion_veracidad",
-                        "kyc_siniestro",
-                    ],
-                    "description": (
-                        "'reembolso': cliente YA pagó y quiere que la aseguradora le reembolse. "
-                        "'procedimiento_medico': cliente VA A operarse, necesita autorización previa (AXA y Mapfre). "
-                        "'informe_medico': el médico tratante llena un informe clínico (AXA, Seguros Monterrey y Mapfre). "
-                        "'aviso_accidente': notificación de accidente (Seguros Monterrey y Mapfre). "
-                        "'consentimiento_informado': consentimiento informado del paciente antes de un procedimiento médico (solo Seguros Monterrey). "
-                        "'declaracion_veracidad': declaración de veracidad que acompaña solicitudes de reembolso (solo Seguros Monterrey). "
-                        "'kyc_siniestro': formulario KYC (Know Your Customer) para verificación de identidad en siniestros (solo Mapfre)."
-                    ),
-                },
                 "compania": {
                     "type": "string",
                     "enum": ["axa", "seguros_monterrey", "mapfre"],
+                    "description": "Aseguradora del cliente (de CiaNombre o lo que el cliente indique).",
+                },
+                "escenario": {
+                    "type": "string",
+                    "enum": [
+                        "reembolso",
+                        "reembolso_con_declaracion",
+                        "cirugia",
+                        "informe_medico",
+                        "accidente",
+                        "accidente_con_kyc",
+                    ],
                     "description": (
-                        "Aseguradora del cliente. Determinada por el campo CiaNombre de la póliza "
-                        "o por lo que el cliente mencione. "
-                        "'axa' para AXA Seguros. "
-                        "'seguros_monterrey' para Seguros Monterrey New York Life (SMNYL). "
-                        "'mapfre' para Mapfre Seguros."
+                        "'reembolso': cliente YA pagó y quiere reembolso. "
+                        "'reembolso_con_declaracion': reembolso + declaración de veracidad (si la aseguradora lo pide). "
+                        "'cirugia': cliente VA A operarse, necesita autorización previa. "
+                        "'informe_medico': el médico tratante debe llenar un informe. "
+                        "'accidente': notificación de accidente. "
+                        "'accidente_con_kyc': accidente + verificación KYC (Mapfre)."
                     ),
                 },
             },
-            "required": ["tipo_formulario", "compania"],
+            "required": ["compania", "escenario"],
         },
     },
     {
@@ -243,46 +257,45 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
         ]
         return {"poliza": numero_poliza, "archivos": enlaces}
 
-    if name == "obtener_formulario":
-        tipo = inputs.get("tipo_formulario")
-        compania_input = inputs.get("compania", "").lower()
+    if name == "obtener_formularios":
+        compania_key = _normalizar_compania(inputs.get("compania", ""))
+        escenario = inputs.get("escenario", "")
 
-        # Normalizar nombre de compañía a clave interna
-        if "monterrey" in compania_input or "smnyl" in compania_input:
-            compania_key = "seguros_monterrey"
-        elif "axa" in compania_input:
-            compania_key = "axa"
-        elif "mapfre" in compania_input:
-            compania_key = "mapfre"
-        else:
-            compania_key = compania_input
+        config = _cargar_forms_config()
+        escenario_config = config.get("escenarios", {}).get(escenario)
 
+        if not escenario_config:
+            return {"error": f"Escenario '{escenario}' no reconocido. Contacte a su asesor."}
+
+        compania_info = config.get("companias", {}).get(compania_key, {})
+        compania_display = compania_info.get("nombre_display", compania_key)
+
+        formularios_ids = escenario_config.get("formularios_por_compania", {}).get(compania_key)
+
+        if formularios_ids is None:
+            return {
+                "error": f"Este trámite no está disponible para {compania_display}. Escale al asesor.",
+                "escalar": True,
+            }
+
+        formularios_catalog = config.get("formularios", {})
         urls_compania = form_urls.get(compania_key, {})
-        url = urls_compania.get(tipo)
+        resultados = []
+        for form_id in formularios_ids:
+            url = urls_compania.get(form_id)
+            nombre = formularios_catalog.get(form_id, {}).get("nombre", form_id)
+            if url:
+                resultados.append({"tipo": form_id, "nombre": nombre, "url": url})
+            else:
+                resultados.append({"tipo": form_id, "nombre": nombre, "error": "URL no disponible"})
 
-        if not url:
-            compania_nombre = {
-                "axa": "AXA",
-                "seguros_monterrey": "Seguros Monterrey New York Life",
-                "mapfre": "Mapfre Seguros",
-            }.get(compania_key, compania_key)
-            return {"error": f"El formulario '{tipo}' no está disponible para {compania_nombre}. Contacte a su asesor."}
-
-        nombres = {
-            "reembolso":               "Formulario de Reembolso de Gastos Médicos",
-            "procedimiento_medico":    "Formulario de Solicitud de Programación / Procedimiento Médico",
-            "informe_medico":          "Informe Médico",
-            "aviso_accidente":         "Aviso de Accidente",
-            "consentimiento_informado": "Consentimiento Informado",
-            "declaracion_veracidad":   "Formato de Declaración de Veracidad",
-            "kyc_siniestro":           "Formulario KYC — Siniestro General",
+        return {
+            "compania": compania_display,
+            "escenario": escenario,
+            "total_formularios": len(resultados),
+            "formularios": resultados,
+            "instruccion": f"Entregar TODOS los {len(resultados)} formularios al cliente.",
         }
-        compania_display = {
-            "axa": "AXA",
-            "seguros_monterrey": "Seguros Monterrey New York Life",
-            "mapfre": "Mapfre Seguros",
-        }.get(compania_key, compania_key)
-        return {"tipo": tipo, "compania": compania_display, "nombre": nombres.get(tipo, tipo), "url": url}
 
     if name == "notificar_agente":
         razon = inputs.get("razon", "")
