@@ -1,0 +1,33 @@
+# Secretos y config local — NUNCA dentro de la imagen
+.env
+.env.*
+!.env.example
+.claude/
+
+# Control de versiones
+.git/
+.gitignore
+
+# Base de datos local
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Archivos privados del negocio
+knowledge/*
+!knowledge/.gitkeep
+
+# Reporte de review (local)
+CODE_REVIEW.md
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

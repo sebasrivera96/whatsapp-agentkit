@@ -39,7 +39,9 @@ class ProveedorWhapi(ProveedorWhatsApp):
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient() as client:
+        # timeout explícito: sin él, un cuelgue de Whapi bloquea el handler del
+        # webhook indefinidamente y Whapi reintenta, acumulando requests colgados.
+        async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
                 self.url_envio,
                 json={"to": telefono, "body": mensaje},
