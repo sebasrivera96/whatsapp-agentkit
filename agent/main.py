@@ -9,6 +9,7 @@ La IA usa tool-use para consultar pólizas en SICAS y escalar a asesores cuando 
 
 import os
 import time
+import hmac
 import asyncio
 import hashlib
 import logging
@@ -55,6 +56,21 @@ PORT = int(os.getenv("PORT", 8000))
 
 # Número del asesor para notificaciones de escalación
 AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER", "")
+
+# Secreto compartido para verificar que el webhook proviene de Whapi y no de un
+# tercero que forja mensajes. Configúralo en .env (WEBHOOK_SECRET) y en el header
+# del webhook de Whapi (X-Webhook-Secret) o como query param ?secret=...
+# Si NO está configurado, la verificación se omite (compatibilidad hacia atrás);
+# en producción SIEMPRE debe estar definido.
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+
+
+def _webhook_autorizado(request: Request) -> bool:
+    """Verifica el secreto compartido del webhook (constant-time)."""
+    if not WEBHOOK_SECRET:
+        return True  # no configurado → no se aplica
+    provisto = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret", "")
+    return hmac.compare_digest(provisto, WEBHOOK_SECRET)
 
 # URLs de formularios PDF
 # Si PUBLIC_URL está configurado, las rutas /forms/* se convierten en URLs absolutas.
@@ -200,10 +216,23 @@ async def webhook_handler(request: Request):
     Recibe mensajes de WhatsApp via el proveedor configurado.
     Procesa el mensaje con el loop agentic SICAS y envía respuesta.
     """
+    # Verificar origen del webhook antes de procesar nada
+    if not _webhook_autorizado(request):
+        logger.warning("Webhook rechazado: secreto inválido o ausente")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # El parseo puede fallar con payloads malformados; en ese caso no hay nada
+    # que procesar. Devolvemos 200 para que el proveedor NO reintente en bucle.
     try:
         mensajes = await proveedor.parsear_webhook(request)
+    except Exception as e:
+        logger.error(f"Error al parsear webhook: {e}")
+        return {"status": "ignored", "reason": "parse_error"}
 
-        for msg in mensajes:
+    for msg in mensajes:
+        # Un error en un mensaje no debe abortar el resto del lote ni provocar
+        # un 500 que dispare reintentos del proveedor sobre todo el batch.
+        try:
             if not msg.texto:
                 continue
 
@@ -282,11 +311,11 @@ async def webhook_handler(request: Request):
             if state.mode == "closed":
                 logger.info(f"Sesión cerrada por el cliente: {numero_limpio}")
 
-        return {"status": "ok"}
+        except Exception as e:
+            logger.error(f"Error procesando mensaje de {msg.telefono}: {e}")
+            continue
 
-    except Exception as e:
-        logger.error(f"Error en webhook: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok"}
 
 
 # ── Endpoints administrativos ─────────────────────────────────────────────────

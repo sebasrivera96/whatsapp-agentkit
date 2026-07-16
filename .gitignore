@@ -19,6 +19,12 @@ knowledge/*
 # Session state
 config/session.yaml
 
+# Config local de Claude Code (rutas y permisos de la máquina del dev)
+.claude/settings.local.json
+
+# Reporte de code review — solo local, no versionar
+CODE_REVIEW.md
+
 # OS
 .DS_Store
 Thumbs.db
