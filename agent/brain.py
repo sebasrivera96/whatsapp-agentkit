@@ -11,6 +11,7 @@ Retorna: (respuesta_para_cliente, mensaje_para_asesor | None)
 """
 
 import os
+import re
 import json
 import yaml
 import logging
@@ -55,7 +56,19 @@ def _extract_text(content) -> str:
             parts.append(block.text)
         elif isinstance(block, dict) and block.get("type") == "text":
             parts.append(block["text"])
-    return "\n".join(parts).strip()
+    return _sanitizar_formato_whatsapp("\n".join(parts).strip())
+
+
+def _sanitizar_formato_whatsapp(texto: str) -> str:
+    """
+    Corrige negritas en formato markdown estándar (**texto**) que Claude
+    a veces genera por hábito, ya que WhatsApp solo reconoce un asterisco
+    de cada lado (*texto*). Sin esto, los asteriscos dobles aparecen
+    literalmente en el mensaje del cliente.
+    """
+    texto = re.sub(r"\*\*(.+?)\*\*", r"*\1*", texto)
+    texto = re.sub(r"\*{2,}", "*", texto)
+    return texto
 
 
 async def generar_respuesta(
