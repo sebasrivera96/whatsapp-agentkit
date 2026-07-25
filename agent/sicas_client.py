@@ -121,15 +121,21 @@ class SICASClient:
             "FormatResponse": 2,
             "ConditionsDirect": f"Cliente;0;0;{id_cli};;0;0;IDCli",
         }
+        logger.debug(f"[SICAS API] get_policies - URL: {url} | IDCli={id_cli}")
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.post(url, headers=headers, data=body)
                 response.raise_for_status()
                 data = response.json()
+                logger.debug(f"[SICAS API] get_policies - Respuesta: Sucess={data.get('Sucess')}")
                 if data.get("Sucess"):
                     resp_obj = data.get("Response", [{}])[0]
                     table_wrapper = next(iter(resp_obj.values()), {}) if resp_obj else {}
-                    return table_wrapper.get("Data", [])
+                    policies = table_wrapper.get("Data", [])
+                    logger.info(f"[SICAS API] get_policies - IDCli={id_cli} retornó {len(policies)} póliza(s)")
+                    return policies
+                else:
+                    logger.warning(f"[SICAS API] get_policies - Respuesta fallida: {data}")
         except httpx.HTTPError as e:
             logger.error("Error HTTP en get_policies (IDCli=%s): %s", id_cli, e)
         return []
@@ -147,13 +153,25 @@ class SICASClient:
             "ValuePK": id_docto,
             "URLSecurity": 0,    # 0 = URL directa sin seguridad adicional
         }
+        logger.debug(f"[SICAS API] get_policy_document_link - URL: {url} | IDDocto={id_docto} | Identity=H02")
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.post(url, headers=headers, data=body)
                 response.raise_for_status()
                 data = response.json()
+                logger.debug(f"[SICAS API] get_policy_document_link - Respuesta: Sucess={data.get('Sucess')}")
                 if data.get("Sucess"):
-                    return data.get("ListData", [])
+                    files = data.get("ListData", [])
+                    logger.info(
+                        f"[SICAS API] get_policy_document_link - IDDocto={id_docto} "
+                        f"retornó {len(files)} archivo(s)"
+                    )
+                    return files
+                else:
+                    logger.warning(
+                        f"[SICAS API] get_policy_document_link - Respuesta fallida para IDDocto={id_docto}: {data}"
+                    )
         except httpx.HTTPError as e:
             logger.error("Error HTTP en get_policy_document_link (IDDocto=%s): %s", id_docto, e)
+        logger.warning(f"[SICAS API] get_policy_document_link - IDDocto={id_docto} retornó lista vacía")
         return []

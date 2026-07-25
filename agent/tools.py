@@ -192,14 +192,27 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
 
     if name == "obtener_polizas":
         id_cli = inputs.get("id_cli")
+        logger.info(f"🔍 [obtener_polizas] Buscando pólizas para IDCli={id_cli}")
         try:
             polizas = await state.sicas.get_policies(id_cli)
         except Exception as e:
-            logger.error("obtener_polizas error: %s", e)
+            logger.error(f"❌ [obtener_polizas] Error: {e}")
             return {"error": "No se pudo obtener las pólizas. Intenta más tarde."}
 
         if not polizas:
+            logger.warning(f"⚠️ [obtener_polizas] IDCli={id_cli} no tiene pólizas registradas")
             return {"polizas": [], "total": 0, "mensaje": "Este cliente no tiene pólizas registradas."}
+
+        logger.info(f"✅ [obtener_polizas] Se encontraron {len(polizas)} póliza(s) para IDCli={id_cli}")
+        for idx, p in enumerate(polizas, 1):
+            logger.info(
+                f"  [{idx}] IDDocto={p.get('IDDocto')} | "
+                f"Documento={p.get('Documento', 'N/A')} | "
+                f"Compañía={p.get('CiaNombre', 'N/A')} | "
+                f"Ramo={p.get('SRamoNombre', 'N/A')} | "
+                f"Vigencia={p.get('FDesde', 'N/A')} a {p.get('FHasta', 'N/A')} | "
+                f"Status={p.get('Status_TXT', 'N/A')}"
+            )
 
         resumen = [
             {
@@ -213,18 +226,24 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
             }
             for p in polizas
         ]
+        logger.debug(f"📋 [obtener_polizas] Retornando resumen de {len(resumen)} póliza(s)")
         return {"polizas": resumen, "total": len(resumen)}
 
     if name == "obtener_documento":
         id_docto = inputs.get("id_docto")
         numero_poliza = inputs.get("numero_poliza", "")
+        logger.info(f"📄 [obtener_documento] Buscando documentos: IDDocto={id_docto} | Póliza={numero_poliza}")
         try:
             archivos = await state.sicas.get_policy_document_link(id_docto)
         except Exception as e:
-            logger.error("obtener_documento error: %s", e)
+            logger.error(f"❌ [obtener_documento] Error al buscar IDDocto={id_docto}: {e}")
             return {"error": "No se pudo obtener el documento. Intenta más tarde."}
 
         if not archivos:
+            logger.warning(
+                f"⚠️ [obtener_documento] Sin documentos para IDDocto={id_docto} | "
+                f"Póliza={numero_poliza} | La API retornó lista vacía"
+            )
             return {
                 "archivos": [],
                 "mensaje": (
@@ -232,6 +251,17 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
                     "Es posible que el documento aún no haya sido subido al sistema."
                 ),
             }
+
+        logger.info(
+            f"✅ [obtener_documento] Se encontraron {len(archivos)} archivo(s) "
+            f"para IDDocto={id_docto} | Póliza={numero_poliza}"
+        )
+        for idx, f in enumerate(archivos, 1):
+            logger.info(
+                f"  [{idx}] Archivo={f.get('FileName', 'desconocido')}.{f.get('Ext', 'pdf')} | "
+                f"Tamaño={f.get('SizeFile', 'N/A')} bytes | "
+                f"URL={f.get('PathWWW', 'N/A')[:80]}..."
+            )
 
         enlaces = [
             {
@@ -241,6 +271,7 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
             }
             for f in archivos
         ]
+        logger.debug(f"📦 [obtener_documento] Retornando {len(enlaces)} enlace(s)")
         return {"poliza": numero_poliza, "archivos": enlaces}
 
     if name == "obtener_formulario":
