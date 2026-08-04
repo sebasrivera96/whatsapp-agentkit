@@ -65,6 +65,16 @@ AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER", "")
 # en producción SIEMPRE debe estar definido.
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 
+# Fail-closed: en producción no se permite arrancar sin WEBHOOK_SECRET configurado.
+# Sin esto, un despliegue en Railway sin la variable de entorno quedaría con el
+# webhook completamente abierto sin que nadie se diera cuenta (ver S1).
+if ENVIRONMENT == "production" and not WEBHOOK_SECRET:
+    raise RuntimeError(
+        "WEBHOOK_SECRET no está configurado con ENVIRONMENT=production. "
+        "Define WEBHOOK_SECRET en las variables de entorno antes de arrancar "
+        "(ver S1 en CODE_REVIEW.md)."
+    )
+
 
 def _webhook_autorizado(request: Request) -> bool:
     """Verifica el secreto compartido del webhook (constant-time)."""
