@@ -9,7 +9,6 @@ La IA usa tool-use para consultar pólizas en SICAS y escalar a asesores cuando 
 
 import os
 import time
-import hmac
 import asyncio
 import hashlib
 import logging
@@ -58,20 +57,9 @@ PORT = int(os.getenv("PORT", 8000))
 # Número del asesor para notificaciones de escalación
 AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER", "")
 
-# Secreto compartido para verificar que el webhook proviene de Whapi y no de un
-# tercero que forja mensajes. Configúralo en .env (WEBHOOK_SECRET) y en el header
-# del webhook de Whapi (X-Webhook-Secret) o como query param ?secret=...
-# Si NO está configurado, la verificación se omite (compatibilidad hacia atrás);
-# en producción SIEMPRE debe estar definido.
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
-
-
-def _webhook_autorizado(request: Request) -> bool:
-    """Verifica el secreto compartido del webhook (constant-time)."""
-    if not WEBHOOK_SECRET:
-        return True  # no configurado → no se aplica
-    provisto = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret", "")
-    return hmac.compare_digest(provisto, WEBHOOK_SECRET)
+# La verificación del origen del webhook vive en cada proveedor
+# (proveedor.webhook_autorizado): Whapi usa WEBHOOK_SECRET, Meta la firma
+# X-Hub-Signature-256 con META_APP_SECRET.
 
 # URLs de formularios PDF
 # Si PUBLIC_URL está configurado, las rutas /forms/* se convierten en URLs absolutas.
@@ -125,6 +113,26 @@ def _es_eco(telefono: str, texto: str) -> bool:
     """Retorna True si el mensaje fue enviado recientemente por el bot."""
     ts = _mensajes_enviados.get(_msg_key(telefono, texto))
     return ts is not None and time.time() - ts < _DEDUP_TTL
+
+
+# ── Dedup de mensajes entrantes por ID ───────────────────────────────────────
+# Meta reintenta el webhook si no respondemos rápido; sin esto, un mismo
+# mensaje del cliente podría procesarse (y contestarse) dos veces.
+_ids_procesados: dict[str, float] = {}
+_IDS_TTL = 3600
+
+
+def _ya_procesado(mensaje_id: str) -> bool:
+    """Retorna True si el mensaje ya se procesó; si no, lo registra."""
+    if not mensaje_id:
+        return False
+    ahora = time.time()
+    for k in [k for k, ts in _ids_procesados.items() if ahora - ts > _IDS_TTL]:
+        del _ids_procesados[k]
+    if mensaje_id in _ids_procesados:
+        return True
+    _ids_procesados[mensaje_id] = ahora
+    return False
 
 
 # Mensaje cuando el bot está pausado (esperando asesor)
@@ -218,7 +226,7 @@ async def webhook_handler(request: Request):
     Procesa el mensaje con el loop agentic SICAS y envía respuesta.
     """
     # Verificar origen del webhook antes de procesar nada
-    if not _webhook_autorizado(request):
+    if not await proveedor.webhook_autorizado(request):
         logger.warning("Webhook rechazado: secreto inválido o ausente")
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -235,6 +243,11 @@ async def webhook_handler(request: Request):
         # un 500 que dispare reintentos del proveedor sobre todo el batch.
         try:
             if not msg.texto:
+                continue
+
+            # Reintento del proveedor sobre un mensaje ya atendido
+            if _ya_procesado(msg.mensaje_id):
+                logger.debug(f"Ignorado (duplicado): {msg.mensaje_id}")
                 continue
 
             # Normalizar número de teléfono

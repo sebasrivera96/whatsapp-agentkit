@@ -6,6 +6,8 @@ Define la interfaz común que todos los proveedores de WhatsApp deben implementa
 Esto permite cambiar de proveedor sin modificar el resto del código.
 """
 
+import os
+import hmac
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from fastapi import Request
@@ -33,6 +35,19 @@ class ProveedorWhatsApp(ABC):
         """Envía un mensaje de texto. Retorna True si fue exitoso."""
         ...
 
-    async def validar_webhook(self, request: Request) -> dict | int | None:
+    async def validar_webhook(self, request: Request) -> dict | int | str | None:
         """Verificación GET del webhook (solo Meta la requiere). Retorna respuesta o None."""
         return None
+
+    async def webhook_autorizado(self, request: Request) -> bool:
+        """
+        Verifica que el POST del webhook viene del proveedor y no de un tercero.
+        Por defecto usa un secreto compartido (WEBHOOK_SECRET) en el header
+        X-Webhook-Secret o en ?secret=...; si no está configurado, se omite.
+        Meta sobreescribe este método para validar su firma HMAC.
+        """
+        secreto = os.getenv("WEBHOOK_SECRET", "")
+        if not secreto:
+            return True  # no configurado → no se aplica
+        provisto = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret", "")
+        return hmac.compare_digest(provisto, secreto)
