@@ -1,6 +1,6 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **2 de octubre de 2026**
+> Última sesión: **9 de octubre de 2026** (anterior: 2 de octubre)
 > Rama: `feat/meta-cloud-api` (solo commit local, **sin push ni PR**)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
@@ -20,7 +20,7 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Claude responde + SICAS (búsqueda, verificación por fecha de nacimiento, pólizas, PDF) | ✅ probado desde `+1 737 888 9040` |
 | Monitor de sesiones (aviso 2.5 min / cierre 5 min) | ✅ envía bien vía Meta |
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
-| Token permanente | ❌ **pendiente**: se usó el token temporal de 24 h (ya caducó) |
+| Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
 | Número real del negocio | ❌ pendiente |
 | Hosting de producción con Meta | ❌ pendiente (Railway sigue en producción con **Whapi**) |
 
@@ -43,7 +43,7 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 Los secretos (`META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `ANTHROPIC_API_KEY`, SICAS) viven **solo** en `.claude/worktrees/meta-cloud-api/.env`, que git ignora.
 
 > ⚠️ En Meta, la **Callback URL** sigue apuntando a un túnel temporal que ya no existe
-> (`https://interview-tab-replied-indicating.trycloudflare.com/webhook`). Hay que actualizarla
+> (`https://suggestion-own-joint-tommy.trycloudflare.com/webhook`, 9-oct). Hay que actualizarla
 > cada vez que se levante un túnel nuevo, o al desplegar en el hosting definitivo (ver §4).
 
 ---
@@ -111,7 +111,9 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 
 ## 5. Pendientes, en orden
 
-### 5.1 Token permanente (Fase 6 del runbook) — **siguiente paso**
+### 5.1 Token permanente (Fase 6 del runbook) — ✅ hecho el 9-oct (solo falta el punto 7)
+
+> Resultado: token de usuario del sistema `backend-whatsapp`, `expires_at: 0`, probado de punta a punta (envíos a Meta con `200 OK`).
 
 1. `business.facebook.com` → ⚙️ Configuración del negocio → **Usuarios → Usuarios del sistema** → **Agregar**.
    - Nombre: `backend-whatsapp`.
@@ -126,6 +128,7 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 4. Cópialo **de inmediato** (solo se muestra una vez) y pégalo en `META_ACCESS_TOKEN` del `.env`.
 5. Verifica con `debug_token` (§4) que `expires_at` sea `0`, es decir, sin caducidad. Si quedó en 60 días, regenera.
 6. Si el token aparece en una captura, chat o log, **rótalo**.
+7. ⏳ **Pendiente:** agregar https://t-protg.com/ como URL de política de privacidad. Hay que hacerlo **a mano** en developers.facebook.com → app → *Configuración de la app → Básica*. Por API falla con el error `(#10) Changing app settings through API calls has been disabled`, y conviene dejar ese bloqueo activo.
 
 ### 5.2 Terminar la prueba del número mexicano (opcional pero recomendado)
 
