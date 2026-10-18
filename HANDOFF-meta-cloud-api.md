@@ -132,6 +132,11 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 
 ### 5.2 Terminar la prueba del número mexicano (opcional pero recomendado)
 
+> ⏳ **Pendiente (17-oct):** no controlamos ese número. Hay que **agendar una videollamada con la dueña
+> del número** para hacer juntos los pasos 1–3: ella recibe el código de verificación y envía el "Hola".
+> Antes de la llamada: levantar el servidor y el túnel (§4) y actualizar la Callback URL.
+> El número ya está en `NUMEROS_AUTORIZADOS` en sus dos formatos (`528181764764` y `5218181764764`).
+
 1. Meta → *Paso 1. Pruébalo* → **Destinatario** → agregar **+52 81 8176 4764**. País México y 10 dígitos, **sin el "1"**.
 2. Confirmar el código que llega por WhatsApp a ese teléfono.
 3. Desde ese teléfono escribir "Hola" al `+1 555 200 1391` y confirmar que la respuesta llega. Valida la conversión `521` → `52` en real.
