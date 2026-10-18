@@ -143,6 +143,11 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 
 ### 5.3 Número real del negocio (Fase 5 / "Paso 2: Configuración de producción")
 
+> ✅ **Decisión (17-oct):** usar un **chip prepago nuevo, solo para el bot**. El número de Whapi es de una
+> asistente que lo sigue usando para hablar con los clientes, así que no se migra.
+> ⏳ Siguiente paso: comprar el chip (de preferencia lada 81), activarlo y registrarlo con la CURP.
+> **No instalarle WhatsApp.**
+
 - **Decidir qué número conectar.** Un número conectado a la Cloud API **deja de funcionar en la app de WhatsApp del celular**. Si es el número que hoy usa Whapi, el cambio es definitivo, así que hay que planear el corte. Alternativa del runbook: un chip prepago dedicado, al que hay que recargar cada ~2 meses y nunca instalarle WhatsApp.
 - En Meta: *Paso 2* → **Agregar número** → código por SMS o llamada → esperar a que se apruebe el **nombre visible**.
 - Copia el **nuevo Phone Number ID** (será distinto al de prueba) y ponlo en `META_PHONE_NUMBER_ID`. La WABA no cambia.
