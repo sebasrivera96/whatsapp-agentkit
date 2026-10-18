@@ -180,6 +180,12 @@ Meta no hospeda el código: el bot necesita un servidor con HTTPS. Comparativo d
 | Koyeb Free | $0 | Se duerme tras 1 h |
 | Cloud Run (request-based) | ~$0 | ❌ los avisos de 2.5 y 5 min no se disparan con el CPU congelado |
 | Oracle Always Free | $0 | Tú administras la VM; Oracle recupera VMs inactivas |
+| AWS Lightsail 512 MB con IPv4 | $5 | Tú administras la VM y el HTTPS; no ahorra nada |
+| AWS EC2 t4g.nano + IPv4 pública | ~$6–7 | AWS cobra la IPv4 aparte (~$3.65); más caro que Railway |
+| Azure VM B1ls + IP pública | ~$6–7 | Igual que EC2: VM que administras tú |
+| Azure App Service F1 (gratis) | $0 | ❌ sin *Always On* ni cuota de CPU suficiente; mismo problema que Cloud Run |
+
+Precios aproximados (oct-2026, revisar antes de decidir). Requisitos del bot: siempre encendido (avisos de 2.5 y 5 min), HTTPS público y Docker. Conclusión (18-oct): AWS/Azure no salen más baratos que Railway para un solo contenedor pequeño. El único ahorro real es Fly.io (~$3/mes) u Oracle gratis, y solo vale la pena aprovechar el corte a Meta (que ya implica redeploy) para moverse.
 
 Al desplegar, configura en el hosting:
 - `WHATSAPP_PROVIDER=meta`, `META_ACCESS_TOKEN` (el permanente), `META_PHONE_NUMBER_ID` (del número real), `META_VERIFY_TOKEN`, `META_APP_SECRET`,
@@ -193,7 +199,21 @@ Después actualiza la Callback URL (§4) a `https://<dominio>/webhook`.
 - `main.py` registra `Respuesta a …` en el log aunque el envío haya fallado. Conviene usar el `bool` que devuelve `enviar_mensaje`.
 - Los dedups (`_ids_procesados`, eco) y el estado de las conversaciones viven en memoria: se pierden al reiniciar o si el hosting se duerme.
 
-### 5.9 Cerrar la rama
+### 5.9 Idea para después del corte: que el asesor conteste desde el número del bot
+
+Con Meta, el número del bot no se puede usar en la app de WhatsApp. Hoy el asesor atiende desde su propio número tras la escalación, y eso basta. Un conocido usa un panel propio (PWA) para responder a mano desde el número del bot; **se decidió no hacerlo por ahora** (18-oct).
+
+Retomar solo si aparece alguno de estos problemas:
+- clientes confundidos porque el asesor les escribe desde otro número;
+- la plantilla de §5.6 complica el aviso al asesor (un panel con push notifications lo evitaría).
+
+Opciones, de menor a mayor esfuerzo:
+1. **Comando de reenvío:** el asesor le escribe al bot `/r 5218… texto` y el bot lo reenvía al cliente. Sin interfaz nueva.
+2. **Inbox existente** como Chatwoot (open source, compatible con Cloud API).
+3. **Coexistencia de Meta** (mismo número en la app WhatsApp Business y en la API): confirmar si está disponible en México y sin verificación del negocio.
+4. PWA propia: login, tiempo real, push y protección de datos de pólizas. Es un proyecto aparte.
+
+### 5.10 Cerrar la rama
 
 - `git push -u origin feat/meta-cloud-api` y abrir el PR cuando 5.1–5.7 estén listos.
 - Cuando ya no se use, borra el worktree con `git worktree remove .claude/worktrees/meta-cloud-api`.
