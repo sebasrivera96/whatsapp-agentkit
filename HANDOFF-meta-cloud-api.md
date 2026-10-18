@@ -1,6 +1,6 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **9 de octubre de 2026** (anterior: 2 de octubre)
+> Última sesión: **17 de octubre de 2026** (anteriores: 9 y 2 de octubre)
 > Rama: `feat/meta-cloud-api` (solo commit local, **sin push ni PR**)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
@@ -111,7 +111,7 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 
 ## 5. Pendientes, en orden
 
-### 5.1 Token permanente (Fase 6 del runbook) — ✅ hecho el 9-oct (solo falta el punto 7)
+### 5.1 Token permanente (Fase 6 del runbook) — ✅ hecho el 9-oct (punto 7 el 17-oct)
 
 > Resultado: token de usuario del sistema `backend-whatsapp`, `expires_at: 0`, probado de punta a punta (envíos a Meta con `200 OK`).
 
@@ -128,7 +128,7 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 4. Cópialo **de inmediato** (solo se muestra una vez) y pégalo en `META_ACCESS_TOKEN` del `.env`.
 5. Verifica con `debug_token` (§4) que `expires_at` sea `0`, es decir, sin caducidad. Si quedó en 60 días, regenera.
 6. Si el token aparece en una captura, chat o log, **rótalo**.
-7. ⏳ **Pendiente:** agregar https://t-protg.com/ como URL de política de privacidad. Hay que hacerlo **a mano** en developers.facebook.com → app → *Configuración de la app → Básica*. Por API falla con el error `(#10) Changing app settings through API calls has been disabled`, y conviene dejar ese bloqueo activo.
+7. ✅ **Hecho el 17-oct:** https://t-protg.com/ quedó como URL de política de privacidad (verificado por API con `fields=privacy_policy_url`). Se hizo **a mano** en developers.facebook.com → app → *Configuración de la app → Básica*. Por API falla con el error `(#10) Changing app settings through API calls has been disabled`, y conviene dejar ese bloqueo activo.
 
 ### 5.2 Terminar la prueba del número mexicano (opcional pero recomendado)
 
@@ -145,8 +145,8 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 
 ### 5.4 Pasar la app a modo **Activo**
 
-- Meta pide una **URL de política de privacidad** en *Configuración de la app → Básica*.
-- Si el negocio no tiene una, se puede agregar al bot una ruta `/privacidad` servida desde el mismo servidor. Está pendiente de decidir.
+- ✅ La **URL de política de privacidad** ya está configurada (`https://t-protg.com/`, 17-oct). Ya no hace falta la ruta `/privacidad`.
+- Falta cambiar el interruptor de la app de *Desarrollo* a **Activo**.
 
 ### 5.5 Abrir el bot a clientes reales
 
