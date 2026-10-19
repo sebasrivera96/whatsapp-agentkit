@@ -1,6 +1,6 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **17 de octubre de 2026** (anteriores: 9 y 2 de octubre)
+> Última sesión: **18 de octubre de 2026** (anteriores: 17, 9 y 2 de octubre)
 > Rama: `feat/meta-cloud-api` (solo commit local, **sin push ni PR**)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
@@ -22,7 +22,12 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
 | Número real del negocio | ❌ pendiente |
+| Ambiente de pruebas en Azure (§4.1) | 🟡 desplegado y verificado; falta apuntar Meta y probar |
 | Hosting de producción con Meta | ❌ pendiente (Railway sigue en producción con **Whapi**) |
+
+> **▶ Para retomar (sesión del 18-oct):** se montó un **ambiente de pruebas en Azure** (ver §4.1) y quedó corriendo,
+> pero **Meta todavía apunta al túnel**, no a Azure. Sigue los pendientes de §4.1 en orden: primero cambiar
+> `ENVIRONMENT` a `production`, luego apuntar la Callback URL a Azure y probar con un WhatsApp real.
 
 **Producción no se tocó:** el servicio de Railway sigue en la rama `main` con `WHATSAPP_PROVIDER=whapi`.
 
@@ -106,6 +111,59 @@ curl -s "https://graph.facebook.com/v21.0/1586670603131302/subscribed_apps?acces
 
 > 🔒 Con `ENVIRONMENT=development`, el log imprime el system prompt completo y los datos de los clientes
 > (nombres, fechas de nacimiento, pólizas). No compartas ni guardes esos logs. En producción usa `ENVIRONMENT=production`.
+
+### 4.1 Ambiente de pruebas en Azure (creado el 18-oct)
+
+Sustituye al túnel: URL fija con HTTPS y siempre encendido. **Solo para pruebas.** El crédito es de la suscripción
+*Visual Studio Enterprise* (US$150/mes, solo dev/test), así que producción **no** va aquí.
+
+| Dato | Valor |
+|---|---|
+| Suscripción | Visual Studio Enterprise Subscription (`a7562d20-b172-4095-b1aa-d2e032909b39`), directorio personal |
+| Grupo de recursos | `rg-whatsapp-bot-test` (South Central US) |
+| Container App | `wa-bot-test`, réplicas mín = máx = 1 (siempre encendida; el estado vive en memoria) |
+| URL | `https://wa-bot-test.nicefield-03aa0d61.southcentralus.azurecontainerapps.io` |
+| Webhook | `…/webhook`, verificación `hub.challenge` probada con curl ✅ |
+| Secretos | `anthropic-api-key`, `meta-access-token`, `meta-verify-token`, `meta-app-secret`, `sicas-username`, `sicas-password` |
+| Variables normales | `WHATSAPP_PROVIDER=meta`, `META_PHONE_NUMBER_ID`, `SICAS_API_URL`, `AGENT_WHATSAPP_NUMBER`, `PUBLIC_URL` (= la URL de arriba), `PORT=8000`, `DATABASE_URL` (SQLite local del contenedor) |
+| Costo estimado | ~US$10–20/mes del crédito |
+
+Azure CLI se instaló con `~/.local/bin/uv tool install --python 3.12 --with pip azure-cli` (sin Homebrew; el `--with pip`
+es necesario para las extensiones). La sesión de `az login` queda guardada en `~/.azure`.
+
+**Pendientes, en orden:**
+
+1. ⚠️ **Cambiar `ENVIRONMENT` a `production`.** Quedó en `development`, que imprime datos de clientes en los logs, y Azure
+   los guarda 30 días en Log Analytics. Hazlo **antes** de que entre el primer mensaje real. El cambio desde Claude Code
+   lo bloqueó el modo automático, así que puede requerir que el usuario lo apruebe o lo corra con `!`:
+   ```bash
+   az containerapp update -n wa-bot-test -g rg-whatsapp-bot-test --set-env-vars ENVIRONMENT=production
+   ```
+2. **Apuntar Meta a Azure:** en developers.facebook.com → WhatsApp → Configuration, usa la Callback URL
+   `https://wa-bot-test.nicefield-03aa0d61.southcentralus.azurecontainerapps.io/webhook` con el mismo `META_VERIFY_TOKEN`.
+   También se puede hacer por API con el `curl` de arriba, cambiando `NUEVA_URL`. Meta admite **una sola** Callback URL:
+   mientras apunte a Azure, el túnel local no recibe nada.
+3. **Probar con un WhatsApp real** al número de prueba y revisar los logs. Pon atención a SICAS: no se sabe si exige
+   IPs autorizadas. Si falla desde Azure pero funciona en local, hay que pedir a SICAS que autoricen la IP de salida:
+   `az containerapp show -n wa-bot-test -g rg-whatsapp-bot-test --query properties.outboundIpAddresses`.
+4. Probar también el monitor de sesiones (aviso a los 2.5 min y cierre a los 5 min).
+
+**Operación:**
+
+```bash
+# Redesplegar después de cambiar código (construye en la nube, no requiere Docker)
+az containerapp up -n wa-bot-test -g rg-whatsapp-bot-test --source .
+
+# Cambiar una variable o un secreto
+az containerapp update -n wa-bot-test -g rg-whatsapp-bot-test --set-env-vars CLAVE=valor
+az containerapp secret set -n wa-bot-test -g rg-whatsapp-bot-test --secrets meta-access-token=<valor>
+
+# Ver logs en vivo
+az containerapp logs show -n wa-bot-test -g rg-whatsapp-bot-test --follow --format text
+
+# Borrar TODO el ambiente (app, registro de imágenes, logs)
+az group delete -n rg-whatsapp-bot-test
+```
 
 ---
 
