@@ -26,8 +26,8 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Hosting de producción con Meta | ❌ pendiente (Railway sigue en producción con **Whapi**) |
 
 > **▶ Para retomar (sesión del 18-oct):** se montó un **ambiente de pruebas en Azure** (ver §4.1) y quedó corriendo,
-> pero **Meta todavía apunta al túnel**, no a Azure. Sigue los pendientes de §4.1 en orden: primero cambiar
-> `ENVIRONMENT` a `production`, luego apuntar la Callback URL a Azure y probar con un WhatsApp real.
+> pero **Meta todavía apunta al túnel**, no a Azure. `ENVIRONMENT=production` ya quedó aplicado.
+> Sigue los pendientes de §4.1: apuntar la Callback URL a Azure y probar con un WhatsApp real.
 
 **Producción no se tocó:** el servicio de Railway sigue en la rama `main` con `WHATSAPP_PROVIDER=whapi`.
 
@@ -133,19 +133,16 @@ es necesario para las extensiones). La sesión de `az login` queda guardada en `
 
 **Pendientes, en orden:**
 
-1. ⚠️ **Cambiar `ENVIRONMENT` a `production`.** Quedó en `development`, que imprime datos de clientes en los logs, y Azure
-   los guarda 30 días en Log Analytics. Hazlo **antes** de que entre el primer mensaje real. El cambio desde Claude Code
-   lo bloqueó el modo automático, así que puede requerir que el usuario lo apruebe o lo corra con `!`:
-   ```bash
-   az containerapp update -n wa-bot-test -g rg-whatsapp-bot-test --set-env-vars ENVIRONMENT=production
-   ```
+1. ✅ **`ENVIRONMENT=production`** — aplicado por el usuario el 18-oct (revisión `wa-bot-test--0000003`). Los logs ya no imprimen datos de clientes.
 2. **Apuntar Meta a Azure:** en developers.facebook.com → WhatsApp → Configuration, usa la Callback URL
    `https://wa-bot-test.nicefield-03aa0d61.southcentralus.azurecontainerapps.io/webhook` con el mismo `META_VERIFY_TOKEN`.
    También se puede hacer por API con el `curl` de arriba, cambiando `NUEVA_URL`. Meta admite **una sola** Callback URL:
    mientras apunte a Azure, el túnel local no recibe nada.
 3. **Probar con un WhatsApp real** al número de prueba y revisar los logs. Pon atención a SICAS: no se sabe si exige
-   IPs autorizadas. Si falla desde Azure pero funciona en local, hay que pedir a SICAS que autoricen la IP de salida:
-   `az containerapp show -n wa-bot-test -g rg-whatsapp-bot-test --query properties.outboundIpAddresses`.
+   IPs autorizadas. Si falla desde Azure pero funciona en local, ojo: el plan Consumption sale por **~190 IPs
+   compartidas** de la región (`--query properties.outboundIpAddresses`), así que no es práctico pedirle a SICAS que
+   las autorice todas. En ese caso habría que darle a la app una IP fija (ambiente con VNet + NAT Gateway,
+   ~US$35/mes extra del crédito) o probar SICAS solo en local.
 4. Probar también el monitor de sesiones (aviso a los 2.5 min y cierre a los 5 min).
 
 **Operación:**
