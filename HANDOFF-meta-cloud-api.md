@@ -296,12 +296,12 @@ Después actualiza la Callback URL (§4) a `https://<dominio>/webhook`.
 
 **Estado de Railway (9-nov):** el servicio `whatsapp-agentkit` (proyecto `celebrated-serenity`) se cayó ~14-oct con
 `ModuleNotFoundError: No module named 'greenlet'`: un rebuild de `main` instaló SQLAlchemy 2.1, que ya no trae `greenlet`.
-El arreglo (`sqlalchemy[asyncio]` en `requirements.txt`) está en la rama `worktree-fix-sqlalchemy-greenlet` (basada en
-`origin/main`, **sin push** porque esta Mac no tiene credenciales de GitHub). Se mantiene Railway como candidato a producción.
-Si se usa Railway para Meta:
+✅ **Arreglado el 9-nov:** `sqlalchemy[asyncio]` quedó en `main` (commit `44e1cee`, hecho desde la web de GitHub porque
+esta Mac no tiene credenciales de GitHub), y se creó un `WEBHOOK_SECRET` nuevo en Railway. Se mantiene Railway como
+candidato a producción. Si se usa Railway para Meta:
 
-- **`WEBHOOK_SECRET` y `9f6986e`:** `main` ya tiene el commit `9f6986e`, que hace que la app **no arranque** con
-  `ENVIRONMENT=production` sin `WEBHOOK_SECRET`. Mientras Railway corra `main`, crea uno nuevo (`openssl rand -hex 32`).
+- **`WEBHOOK_SECRET` y `9f6986e`:** `main` tiene el commit `9f6986e`, que hace que la app **no arranque** con
+  `ENVIRONMENT=production` sin `WEBHOOK_SECRET`. Por eso se creó uno nuevo en Railway; no lo borres mientras corra `main`.
 - **Conflicto al fusionar esta rama:** esta rama no tiene `9f6986e` y movió la validación a `proveedor.webhook_autorizado()`.
   Al fusionar con `main` habrá conflicto en `agent/main.py`. Adapta el arranque seguro a cada proveedor: con Meta exige
   `META_APP_SECRET` (hoy `meta.py` solo avisa en el log si falta); con Whapi, `WEBHOOK_SECRET`.
