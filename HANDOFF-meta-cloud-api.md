@@ -1,6 +1,6 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **18 de octubre de 2026** (anteriores: 17, 9 y 2 de octubre)
+> Última sesión: **9 de noviembre de 2026** (anteriores: 18, 17, 9 y 2 de octubre)
 > Rama: `feat/meta-cloud-api` (solo commit local, **sin push ni PR**)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
@@ -23,13 +23,14 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
 | Número real del negocio | ❌ pendiente |
 | Ambiente de pruebas en Azure (§4.1) | 🟡 desplegado y verificado; falta apuntar Meta y probar |
-| Hosting de producción con Meta | ❌ pendiente (Railway sigue en producción con **Whapi**) |
+| Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
+| Claves en `.env` local y Azure | ❌ **obsoletas**: la clave de Anthropic da 401 desde la rotación (ver §4.2) |
 
-> **▶ Para retomar (sesión del 18-oct):** se montó un **ambiente de pruebas en Azure** (ver §4.1) y quedó corriendo,
-> pero **Meta todavía apunta al túnel**, no a Azure. `ENVIRONMENT=production` ya quedó aplicado.
-> Sigue los pendientes de §4.1: apuntar la Callback URL a Azure y probar con un WhatsApp real.
+> **▶ Para retomar (sesión del 9-nov):** **primero** pon las claves nuevas de Anthropic y SICAS en el `.env`
+> local y en Azure (§4.2, pasos 1–3). Sin eso el bot no contesta en ningún ambiente.
+> Después sigue los pendientes de §4.1: apuntar la Callback URL a Azure y probar con un WhatsApp real.
 
-**Producción no se tocó:** el servicio de Railway sigue en la rama `main` con `WHATSAPP_PROVIDER=whapi`.
+**Ya no hay producción con Whapi:** el servicio de Railway está caído desde ~14-oct y el canal de Whapi se borró el 9-nov (ver §4.2).
 
 ---
 
@@ -162,6 +163,50 @@ az containerapp logs show -n wa-bot-test -g rg-whatsapp-bot-test --follow --form
 az group delete -n rg-whatsapp-bot-test
 ```
 
+### 4.2 Brecha de Railway (oct-2026) y rotación de claves
+
+El 21-oct Railway reveló un incidente: es posible que se hayan descifrado variables de entorno de algunos clientes, y los atacantes
+buscaban claves de IA. El 23-oct Railway avisó que este workspace coincidía con lo que buscaban (correo auténtico:
+SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se considera filtrado.
+
+| Secreto | Estado |
+|---|---|
+| `ANTHROPIC_API_KEY` | ✅ rotada (la vieja da 401) |
+| `SICAS_USERNAME` / `SICAS_PASSWORD` | ✅ rotados |
+| `WHAPI_TOKEN` | ✅ canal de Whapi borrado (9-nov); variable borrada de Railway |
+| `WEBHOOK_SECRET` | ✅ variable borrada de Railway (ver §5.7: hay que crear una nueva para que arranque) |
+| `.env` local de este worktree | ❌ **sigue con los valores viejos** |
+| Secretos de Azure `wa-bot-test` | ❌ **siguen con los valores viejos** (mismos que el `.env` local) |
+
+**Arreglo del entorno local y de Azure, en orden:**
+
+1. **`.env` local:** en `.claude/worktrees/meta-cloud-api/.env`, reemplaza `ANTHROPIC_API_KEY`, `SICAS_USERNAME` y
+   `SICAS_PASSWORD` con los valores nuevos. No los pegues en un chat ni en este archivo.
+2. **Azure:** sube los mismos valores desde el `.env`, así no aparecen en la terminal ni en el historial, y reinicia
+   la revisión para que los tome (los secretos no se recargan solos):
+   ```bash
+   cd .claude/worktrees/meta-cloud-api
+   set -a && . ./.env && set +a
+   az containerapp secret set -n wa-bot-test -g rg-whatsapp-bot-test \
+     --secrets anthropic-api-key="$ANTHROPIC_API_KEY" sicas-username="$SICAS_USERNAME" sicas-password="$SICAS_PASSWORD"
+   az containerapp revision restart -n wa-bot-test -g rg-whatsapp-bot-test \
+     --revision $(az containerapp show -n wa-bot-test -g rg-whatsapp-bot-test --query properties.latestRevisionName -o tsv)
+   ```
+   (`az` está en `~/.local/bin/az` si no está en el `PATH`.)
+3. **Verificar** sin imprimir las claves. Las dos deben dar `200`, y la comparación de SICAS debe decir `igual`:
+   ```bash
+   set -a && . ./.env && set +a
+   curl -s -o /dev/null -w 'local: %{http_code}\n' https://api.anthropic.com/v1/models \
+     -H "x-api-key: $ANTHROPIC_API_KEY" -H 'anthropic-version: 2023-06-01'
+   AZ_KEY=$(az containerapp secret show -n wa-bot-test -g rg-whatsapp-bot-test --secret-name anthropic-api-key --query value -o tsv)
+   curl -s -o /dev/null -w 'azure: %{http_code}\n' https://api.anthropic.com/v1/models \
+     -H "x-api-key: $AZ_KEY" -H 'anthropic-version: 2023-06-01'
+   [ "$(az containerapp secret show -n wa-bot-test -g rg-whatsapp-bot-test --secret-name sicas-password --query value -o tsv)" = "$SICAS_PASSWORD" ] \
+     && echo 'sicas: igual' || echo 'sicas: distinto'
+   ```
+4. **Probar de punta a punta:** levanta el servidor local (§4) y escribe al número de prueba para confirmar que Claude
+   contesta y que SICAS encuentra pólizas. Después repite contra Azure (§4.1).
+
 ---
 
 ## 5. Pendientes, en orden
@@ -248,6 +293,19 @@ Al desplegar, configura en el hosting:
 - `PUBLIC_URL` (para los PDFs de `/forms`) y `ENVIRONMENT=production`.
 
 Después actualiza la Callback URL (§4) a `https://<dominio>/webhook`.
+
+**Estado de Railway (9-nov):** el servicio `whatsapp-agentkit` (proyecto `celebrated-serenity`) se cayó ~14-oct con
+`ModuleNotFoundError: No module named 'greenlet'`: un rebuild de `main` instaló SQLAlchemy 2.1, que ya no trae `greenlet`.
+El arreglo (`sqlalchemy[asyncio]` en `requirements.txt`) está en la rama `worktree-fix-sqlalchemy-greenlet` (basada en
+`origin/main`, **sin push** porque esta Mac no tiene credenciales de GitHub). Se mantiene Railway como candidato a producción.
+Si se usa Railway para Meta:
+
+- **`WEBHOOK_SECRET` y `9f6986e`:** `main` ya tiene el commit `9f6986e`, que hace que la app **no arranque** con
+  `ENVIRONMENT=production` sin `WEBHOOK_SECRET`. Mientras Railway corra `main`, crea uno nuevo (`openssl rand -hex 32`).
+- **Conflicto al fusionar esta rama:** esta rama no tiene `9f6986e` y movió la validación a `proveedor.webhook_autorizado()`.
+  Al fusionar con `main` habrá conflicto en `agent/main.py`. Adapta el arranque seguro a cada proveedor: con Meta exige
+  `META_APP_SECRET` (hoy `meta.py` solo avisa en el log si falta); con Whapi, `WEBHOOK_SECRET`.
+- Antes de guardar `META_ACCESS_TOKEN` y `META_APP_SECRET` en Railway, recuerda la brecha (§4.2).
 
 ### 5.8 Mejoras menores detectadas
 
