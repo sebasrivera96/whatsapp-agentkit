@@ -1,0 +1,76 @@
+# config/forms.yaml — Catálogo de formularios y reglas de entrega por escenario
+# Generado por AgentKit — Editar este archivo para agregar/modificar escenarios y bundles.
+# No requiere cambios de código; el backend lee este archivo en cada llamada.
+
+companias:
+  axa:
+    nombre_display: "AXA Seguros"
+    aliases: ["axa"]
+  seguros_monterrey:
+    nombre_display: "Seguros Monterrey New York Life"
+    aliases: ["monterrey", "smnyl", "seguros monterrey"]
+  mapfre:
+    nombre_display: "Mapfre Seguros"
+    aliases: ["mapfre"]
+
+formularios:
+  reembolso:
+    nombre: "Formulario de Reembolso de Gastos Médicos"
+  procedimiento_medico:
+    nombre: "Formulario de Solicitud de Programación / Procedimiento Médico"
+  informe_medico:
+    nombre: "Informe Médico"
+  aviso_accidente:
+    nombre: "Aviso de Accidente"
+  consentimiento_informado:
+    nombre: "Consentimiento Informado"
+  declaracion_veracidad:
+    nombre: "Formato de Declaración de Veracidad"
+  kyc_siniestro:
+    nombre: "Formulario KYC — Siniestro General"
+
+# Escenarios: cada uno define qué formularios entregar por compañía.
+# El agente solo necesita identificar compañía + escenario.
+# null = no disponible para esa compañía (el sistema sugiere escalar al asesor).
+escenarios:
+  reembolso:
+    descripcion: "Cliente YA pagó de su bolsillo y quiere que la aseguradora le reembolse."
+    formularios_por_compania:
+      axa: ["reembolso"]
+      seguros_monterrey: ["reembolso"]
+      mapfre: ["reembolso"]
+
+  reembolso_con_declaracion:
+    descripcion: "Reembolso + declaración de veracidad (Seguros Monterrey lo requiere explícitamente)."
+    formularios_por_compania:
+      axa: ["reembolso"]
+      seguros_monterrey: ["reembolso", "declaracion_veracidad"]
+      mapfre: ["reembolso"]
+
+  cirugia:
+    descripcion: "Cliente VA A operarse u hospitalizarse, necesita autorización previa."
+    formularios_por_compania:
+      axa: ["procedimiento_medico", "informe_medico"]
+      seguros_monterrey: ["informe_medico", "consentimiento_informado"]
+      mapfre: ["procedimiento_medico"]
+
+  informe_medico:
+    descripcion: "El médico tratante debe llenar un informe clínico para la aseguradora."
+    formularios_por_compania:
+      axa: ["informe_medico"]
+      seguros_monterrey: ["informe_medico"]
+      mapfre: ["informe_medico"]
+
+  accidente:
+    descripcion: "Notificación de accidente (trámite administrativo)."
+    formularios_por_compania:
+      axa: null
+      seguros_monterrey: ["aviso_accidente"]
+      mapfre: ["aviso_accidente"]
+
+  accidente_con_kyc:
+    descripcion: "Accidente + verificación KYC para apertura de siniestro (Mapfre lo requiere)."
+    formularios_por_compania:
+      axa: null
+      seguros_monterrey: ["aviso_accidente"]
+      mapfre: ["aviso_accidente", "kyc_siniestro"]
