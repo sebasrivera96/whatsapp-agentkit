@@ -24,10 +24,10 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov); falta darlo de alta en Meta (§5.3) |
 | Ambiente de pruebas en Azure (§4.1) | 🟡 desplegado y verificado; falta apuntar Meta y probar |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
-| Claves en `.env` local y Azure | 🟡 local ✅ (12-nov, Anthropic da 200); **Azure sigue con las viejas** (401) — §4.2 paso 2 |
+| Claves en `.env` local y Azure | ✅ rotadas en los dos (12-nov; Anthropic da 200, SICAS coincide) |
 
-> **▶ Para retomar (sesión del 12-nov):** **primero** sube las claves nuevas a Azure (§4.2, pasos 2–3).
-> Después sigue los pendientes de §4.1 (apuntar la Callback URL a Azure y probar) y da de alta el número real (§5.3).
+> **▶ Para retomar (sesión del 12-nov):** las claves ya están al día (§4.2). Sigue los pendientes de §4.1
+> (apuntar la Callback URL a Azure y probar con un WhatsApp real) y da de alta el número real (§5.3).
 
 **Ya no hay producción con Whapi:** el canal de Whapi se borró el 9-nov. El servicio de Railway volvió a arrancar el 9-nov
 (sigue con `WHATSAPP_PROVIDER=whapi`, así que está sano pero no contesta a nadie hasta el corte a Meta; ver §5.7).
@@ -176,7 +176,7 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 | `WHAPI_TOKEN` | ✅ canal de Whapi borrado (9-nov); variable borrada de Railway |
 | `WEBHOOK_SECRET` | ✅ variable borrada de Railway (ver §5.7: hay que crear una nueva para que arranque) |
 | `.env` local de este worktree | ✅ actualizado el 12-nov (Anthropic da 200) |
-| Secretos de Azure `wa-bot-test` | ❌ **siguen con los valores viejos** (mismos que el `.env` local) |
+| Secretos de Azure `wa-bot-test` | ✅ actualizados el 12-nov (revisión `wa-bot-test--0000003` reiniciada) |
 
 **Arreglo del entorno local y de Azure, en orden:**
 
