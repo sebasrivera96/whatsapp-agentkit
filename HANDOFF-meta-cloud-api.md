@@ -22,7 +22,7 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
 | Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov); falta darlo de alta en Meta (§5.3) |
-| Ambiente de pruebas en Azure (§4.1) | 🟡 Callback URL de Meta apuntando a Azure (12-nov); falta la prueba con WhatsApp real |
+| Ambiente de pruebas en Azure (§4.1) | ✅ probado de punta a punta el 13-nov (Meta → Azure → Claude → SICAS → respuesta); falta el monitor de sesiones |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
 | Claves en `.env` local y Azure | ✅ rotadas en los dos (12-nov; Anthropic da 200, SICAS coincide) |
 
@@ -150,7 +150,7 @@ es necesario para las extensiones). La sesión de `az login` queda guardada en `
    `https://wa-bot-test.nicefield-03aa0d61.southcentralus.azurecontainerapps.io/webhook` con el mismo `META_VERIFY_TOKEN`.
    También se puede hacer por API con el `curl` de arriba, cambiando `NUEVA_URL`. Meta admite **una sola** Callback URL:
    mientras apunte a Azure, el túnel local no recibe nada.
-3. **Probar con un WhatsApp real** al número de prueba y revisar los logs. Pon atención a SICAS: no se sabe si exige
+3. ✅ (13-nov) **Probar con un WhatsApp real** — funcionó: SICAS **no** bloquea las IPs de Azure (búsqueda, verificación y 13 pólizas). Lo de abajo queda como referencia. al número de prueba y revisar los logs. Pon atención a SICAS: no se sabe si exige
    IPs autorizadas. Si falla desde Azure pero funciona en local, ojo: el plan Consumption sale por **~190 IPs
    compartidas** de la región (`--query properties.outboundIpAddresses`), así que no es práctico pedirle a SICAS que
    las autorice todas. En ese caso habría que darle a la app una IP fija (ambiente con VNet + NAT Gateway,
@@ -328,6 +328,12 @@ candidato a producción. Si se usa Railway para Meta:
 - Antes de guardar `META_ACCESS_TOKEN` y `META_APP_SECRET` en Railway, recuerda la brecha (§4.2).
 
 ### 5.8 Mejoras menores detectadas
+
+- ✅ (13-nov, commit `d42bc3a`) `httpx` registraba en INFO la URL de `GetToken` con usuario y contraseña de SICAS en
+  texto plano, también en producción. Se silenció `httpx`/`httpcore` a WARNING en `agent/main.py`. En el Log Analytics
+  de Azure quedó una versión **recortada** (11 de 16 caracteres) de la contraseña: conviene **rotarla**.
+- ⚠️ Con `ENVIRONMENT=production` los logs **sí** siguen mostrando datos de clientes: las líneas `Tool buscar_cliente →`
+  y `Tool obtener_polizas →` (nombre, RFC, fecha de nacimiento, pólizas) y `Respuesta a …` son INFO. Corrige lo dicho en §4.
 
 - `main.py` registra `Respuesta a …` en el log aunque el envío haya fallado. Conviene usar el `bool` que devuelve `enviar_mensaje`.
 - Los dedups (`_ids_procesados`, eco) y el estado de las conversaciones viven en memoria: se pierden al reiniciar o si el hosting se duerme.
