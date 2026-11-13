@@ -332,8 +332,10 @@ candidato a producción. Si se usa Railway para Meta:
 - ✅ (13-nov, commit `d42bc3a`) `httpx` registraba en INFO la URL de `GetToken` con usuario y contraseña de SICAS en
   texto plano, también en producción. Se silenció `httpx`/`httpcore` a WARNING en `agent/main.py`. En el Log Analytics
   de Azure quedó una versión **recortada** (11 de 16 caracteres) de la contraseña: conviene **rotarla**.
-- ⚠️ Con `ENVIRONMENT=production` los logs **sí** siguen mostrando datos de clientes: las líneas `Tool buscar_cliente →`
-  y `Tool obtener_polizas →` (nombre, RFC, fecha de nacimiento, pólizas) y `Respuesta a …` son INFO. Corrige lo dicho en §4.
+- ✅ (13-nov, commit `5624114`, revisión `wa-bot-test--0000006`) Con `ENVIRONMENT=production` los logs mostraban datos de
+  clientes (`Tool … →` con nombre/RFC/fecha de nacimiento/pólizas, texto de mensajes y respuestas, aviso al asesor,
+  URLs de documentos). Ahora ese contenido va a DEBUG y en INFO solo queda el evento. El Log Analytics de Azure conserva
+  lo registrado antes del 13-nov.
 
 - `main.py` registra `Respuesta a …` en el log aunque el envío haya fallado. Conviene usar el `bool` que devuelve `enviar_mensaje`.
 - Los dedups (`_ids_procesados`, eco) y el estado de las conversaciones viven en memoria: se pierden al reiniciar o si el hosting se duerme.
