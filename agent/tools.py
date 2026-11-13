@@ -205,7 +205,7 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
 
         logger.info(f"✅ [obtener_polizas] Se encontraron {len(polizas)} póliza(s) para IDCli={id_cli}")
         for idx, p in enumerate(polizas, 1):
-            logger.info(
+            logger.debug(
                 f"  [{idx}] IDDocto={p.get('IDDocto')} | "
                 f"Documento={p.get('Documento', 'N/A')} | "
                 f"Compañía={p.get('CiaNombre', 'N/A')} | "
@@ -232,7 +232,7 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
     if name == "obtener_documento":
         id_docto = inputs.get("id_docto")
         numero_poliza = inputs.get("numero_poliza", "")
-        logger.info(f"📄 [obtener_documento] Buscando documentos: IDDocto={id_docto} | Póliza={numero_poliza}")
+        logger.debug(f"📄 [obtener_documento] Buscando documentos: IDDocto={id_docto} | Póliza={numero_poliza}")
         try:
             archivos = await state.sicas.get_policy_document_link(id_docto)
         except Exception as e:
@@ -252,12 +252,12 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
                 ),
             }
 
-        logger.info(
+        logger.debug(
             f"✅ [obtener_documento] Se encontraron {len(archivos)} archivo(s) "
             f"para IDDocto={id_docto} | Póliza={numero_poliza}"
         )
         for idx, f in enumerate(archivos, 1):
-            logger.info(
+            logger.debug(
                 f"  [{idx}] Archivo={f.get('FileName', 'desconocido')}.{f.get('Ext', 'pdf')} | "
                 f"Tamaño={f.get('SizeFile', 'N/A')} bytes | "
                 f"URL={f.get('PathWWW', 'N/A')[:80]}..."
@@ -333,7 +333,8 @@ async def dispatch_tool(name: str, inputs: dict, state: ConversationState, form_
 
     if name == "cerrar_sesion":
         motivo = inputs.get("motivo", "")
-        logger.info(f"Sesión cerrada por herramienta: {motivo}")
+        logger.info("Sesión cerrada por herramienta")
+        logger.debug(f"Motivo del cierre: {motivo}")
         return {
             "cerrar": True,
             "motivo": motivo,

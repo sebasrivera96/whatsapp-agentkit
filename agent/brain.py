@@ -131,7 +131,9 @@ async def generar_respuesta(
                     continue
 
                 result = await dispatch_tool(block.name, block.input, state, form_urls)
-                logger.info("Tool %s → %s", block.name, json.dumps(result, ensure_ascii=False)[:200])
+                # El resultado trae datos de clientes (nombre, RFC, pólizas): solo en debug
+                logger.info("Tool %s ejecutada", block.name)
+                logger.debug("Tool %s → %s", block.name, json.dumps(result, ensure_ascii=False)[:200])
 
                 tool_results.append({
                     "type": "tool_result",

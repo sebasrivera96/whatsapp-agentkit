@@ -272,7 +272,9 @@ async def webhook_handler(request: Request):
                 logger.info(f"Número no autorizado ignorado: {msg.telefono}")
                 continue
 
-            logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
+            # El texto puede traer datos personales (p. ej. fecha de nacimiento): solo en debug
+            logger.info(f"Mensaje de {msg.telefono} ({len(msg.texto)} caracteres)")
+            logger.debug(f"Texto de {msg.telefono}: {msg.texto}")
 
             # Obtener o crear estado de conversación
             state = conversation_manager.get_or_create(numero_limpio)
@@ -316,14 +318,16 @@ async def webhook_handler(request: Request):
             if msg_asesor and AGENT_WHATSAPP_NUMBER:
                 notif_asesor = f"📞 Cliente: {msg.telefono}\n{msg_asesor}"
                 await proveedor.enviar_mensaje(AGENT_WHATSAPP_NUMBER, notif_asesor)
-                logger.info(f"Asesor notificado ({AGENT_WHATSAPP_NUMBER}): {msg_asesor}")
+                logger.info(f"Asesor notificado ({AGENT_WHATSAPP_NUMBER})")
+                logger.debug(f"Aviso al asesor: {msg_asesor}")
 
             # Registrar en cache anti-bucle ANTES de enviar
             _registrar_enviado(msg.telefono, respuesta)
 
             # Enviar respuesta al cliente
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
-            logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
+            logger.info(f"Respuesta enviada a {msg.telefono} ({len(respuesta)} caracteres)")
+            logger.debug(f"Respuesta a {msg.telefono}: {respuesta}")
 
             # Si el agente cerró la sesión (cerrar_sesion tool), limpiar estado
             if state.mode == "closed":
