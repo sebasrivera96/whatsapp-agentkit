@@ -22,7 +22,7 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
 | Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov); falta darlo de alta en Meta (§5.3) |
-| Ambiente de pruebas en Azure (§4.1) | ✅ probado de punta a punta el 13-nov (Meta → Azure → Claude → SICAS → respuesta); falta el monitor de sesiones |
+| Ambiente de pruebas en Azure (§4.1) | ✅ probado de punta a punta el 13-nov (Meta → Azure → Claude → SICAS → PDF → monitor de 2.5/5 min) |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
 | Claves en `.env` local y Azure | ✅ rotadas en los dos (12-nov; Anthropic da 200, SICAS coincide) |
 
@@ -155,7 +155,7 @@ es necesario para las extensiones). La sesión de `az login` queda guardada en `
    compartidas** de la región (`--query properties.outboundIpAddresses`), así que no es práctico pedirle a SICAS que
    las autorice todas. En ese caso habría que darle a la app una IP fija (ambiente con VNet + NAT Gateway,
    ~US$35/mes extra del crédito) o probar SICAS solo en local.
-4. Probar también el monitor de sesiones (aviso a los 2.5 min y cierre a los 5 min).
+4. ✅ (13-nov) Monitor de sesiones probado: aviso a los 2.5 min y cierre a los 5 min llegan por Meta.
 
 **Operación:**
 
@@ -339,6 +339,26 @@ candidato a producción. Si se usa Railway para Meta:
 
 - `main.py` registra `Respuesta a …` en el log aunque el envío haya fallado. Conviene usar el `bool` que devuelve `enviar_mensaje`.
 - Los dedups (`_ids_procesados`, eco) y el estado de las conversaciones viven en memoria: se pierden al reiniciar o si el hosting se duerme.
+
+### 5.8.1 Enlace directo a los PDF de SICAS (privacidad) — pendiente
+
+El bot entrega la póliza como un enlace directo al almacenamiento de SICAS
+(`https://www.SICASOnline.info/SICASData/SICAS2138/Storage/CONT…/Cliente/DOC…/<poliza>.pdf`). La ruta es predecible
+(número de contrato, documento y póliza) y, si se abre sin sesión, cualquiera con el enlace ve la póliza.
+El enlace se queda en el chat, se puede reenviar y no caduca. Ya existía antes de la migración.
+
+**Primero:** abrir uno de esos enlaces en una ventana privada para confirmar si SICAS pide sesión.
+
+El usuario prefiere no mostrar ese enlace (13-nov). **Un acortador tipo TinyURL no basta:** solo oculta la URL, que
+sigue siendo pública y sin caducidad. Además, los códigos cortos se pueden adivinar y el PDF pasa a depender de un
+tercero. Opciones reales, de mejor a peor:
+
+1. **Mandar el PDF como documento de WhatsApp.** El servidor descarga el PDF de SICAS, lo sube a Meta
+   (`POST /<PHONE_ID>/media`) y lo envía con `type: "document"`. El cliente recibe el archivo y no ve ningún enlace.
+   Cambio en `agent/providers/meta.py` (nuevo `enviar_documento`) y en el flujo de `obtener_documento`.
+2. **Enlace propio que caduca:** `PUBLIC_URL/doc/<token>`, con un token aleatorio de un solo uso o de ~15 min que
+   el servidor resuelve y le pide a SICAS. La URL de SICAS nunca sale del servidor. Como el estado vive en memoria,
+   el token se pierde si el servidor reinicia.
 
 ### 5.9 Idea para después del corte: que el asesor conteste desde el número del bot
 
