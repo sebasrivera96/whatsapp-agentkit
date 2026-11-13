@@ -191,6 +191,12 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 
 **Arreglo del entorno local y de Azure, en orden:**
 
+> ⚠️ **(12-nov) La contraseña de SICAS contiene `$`.** Cargar el `.env` con el shell (`. ./.env`) la recorta
+> (16 → 11 caracteres) sin avisar, y así llegó mal a Azure: SICAS respondía *"Usuario o Contraseña Incorrecta"*.
+> **No uses `set -a && . ./.env` para subir secretos de SICAS.** Léelos con `python-dotenv`, como la app, y llama a
+> `az` sin shell (con `subprocess` y una lista de argumentos). Lo mismo aplica para comparar valores: compara contra
+> `dotenv_values(".env")`, no contra las variables del shell.
+
 1. **`.env` local:** en `.claude/worktrees/meta-cloud-api/.env`, reemplaza `ANTHROPIC_API_KEY`, `SICAS_USERNAME` y
    `SICAS_PASSWORD` con los valores nuevos. No los pegues en un chat ni en este archivo.
 2. **Azure:** sube los mismos valores desde el `.env`, así no aparecen en la terminal ni en el historial, y reinicia
