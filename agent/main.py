@@ -48,6 +48,10 @@ SELF_CHAT_NUMEROS = {
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 log_level = logging.DEBUG if ENVIRONMENT == "development" else logging.INFO
 logging.basicConfig(level=log_level)
+# httpx registra la URL completa de cada petición, y SICAS recibe usuario y
+# contraseña en la query string: silenciarlo evita filtrar credenciales a los logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("agentkit")
 
 # Proveedor de WhatsApp
