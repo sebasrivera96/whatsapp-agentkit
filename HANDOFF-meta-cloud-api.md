@@ -21,16 +21,16 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Monitor de sesiones (aviso 2.5 min / cierre 5 min) | ✅ envía bien vía Meta |
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
-| Número real del negocio | ❌ pendiente |
+| Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov); falta darlo de alta en Meta (§5.3) |
 | Ambiente de pruebas en Azure (§4.1) | 🟡 desplegado y verificado; falta apuntar Meta y probar |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
-| Claves en `.env` local y Azure | ❌ **obsoletas**: la clave de Anthropic da 401 desde la rotación (ver §4.2) |
+| Claves en `.env` local y Azure | 🟡 local ✅ (12-nov, Anthropic da 200); **Azure sigue con las viejas** (401) — §4.2 paso 2 |
 
-> **▶ Para retomar (sesión del 9-nov):** **primero** pon las claves nuevas de Anthropic y SICAS en el `.env`
-> local y en Azure (§4.2, pasos 1–3). Sin eso el bot no contesta en ningún ambiente.
-> Después sigue los pendientes de §4.1: apuntar la Callback URL a Azure y probar con un WhatsApp real.
+> **▶ Para retomar (sesión del 12-nov):** **primero** sube las claves nuevas a Azure (§4.2, pasos 2–3).
+> Después sigue los pendientes de §4.1 (apuntar la Callback URL a Azure y probar) y da de alta el número real (§5.3).
 
-**Ya no hay producción con Whapi:** el servicio de Railway está caído desde ~14-oct y el canal de Whapi se borró el 9-nov (ver §4.2).
+**Ya no hay producción con Whapi:** el canal de Whapi se borró el 9-nov. El servicio de Railway volvió a arrancar el 9-nov
+(sigue con `WHATSAPP_PROVIDER=whapi`, así que está sano pero no contesta a nadie hasta el corte a Meta; ver §5.7).
 
 ---
 
@@ -175,7 +175,7 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 | `SICAS_USERNAME` / `SICAS_PASSWORD` | ✅ rotados |
 | `WHAPI_TOKEN` | ✅ canal de Whapi borrado (9-nov); variable borrada de Railway |
 | `WEBHOOK_SECRET` | ✅ variable borrada de Railway (ver §5.7: hay que crear una nueva para que arranque) |
-| `.env` local de este worktree | ❌ **sigue con los valores viejos** |
+| `.env` local de este worktree | ✅ actualizado el 12-nov (Anthropic da 200) |
 | Secretos de Azure `wa-bot-test` | ❌ **siguen con los valores viejos** (mismos que el `.env` local) |
 
 **Arreglo del entorno local y de Azure, en orden:**
@@ -245,8 +245,11 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 
 > ✅ **Decisión (17-oct):** usar un **chip prepago nuevo, solo para el bot**. El número de Whapi es de una
 > asistente que lo sigue usando para hablar con los clientes, así que no se migra.
-> ⏳ Siguiente paso: comprar el chip (de preferencia lada 81), activarlo y registrarlo con la CURP.
-> **No instalarle WhatsApp.**
+> ✅ **Número elegido (12-nov): +52 81 2378 5486.** En Meta se captura como país México y los 10 dígitos
+> `8123785486` (sin el "1").
+> ⏳ Siguiente paso: verificar que el chip esté activo y recibe SMS o llamadas, y darlo de alta en Meta (pasos de abajo).
+> **No instalarle WhatsApp.** Si ya tiene una cuenta de WhatsApp, bórrala desde la app (*Ajustes → Cuenta → Eliminar
+> cuenta*) antes del alta; si no, Meta rechaza el número.
 
 - **Decidir qué número conectar.** Un número conectado a la Cloud API **deja de funcionar en la app de WhatsApp del celular**. Si es el número que hoy usa Whapi, el cambio es definitivo, así que hay que planear el corte. Alternativa del runbook: un chip prepago dedicado, al que hay que recargar cada ~2 meses y nunca instalarle WhatsApp.
 - En Meta: *Paso 2* → **Agregar número** → código por SMS o llamada → esperar a que se apruebe el **nombre visible**.
