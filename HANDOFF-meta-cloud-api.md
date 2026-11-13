@@ -1,6 +1,6 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **9 de noviembre de 2026** (anteriores: 18, 17, 9 y 2 de octubre)
+> Última sesión: **12 de noviembre de 2026** (anteriores: 9-nov; 18, 17, 9 y 2 de octubre)
 > Rama: `feat/meta-cloud-api` (solo commit local, **sin push ni PR**)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
@@ -22,7 +22,7 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
 | Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov); falta darlo de alta en Meta (§5.3) |
-| Ambiente de pruebas en Azure (§4.1) | 🟡 desplegado y verificado; falta apuntar Meta y probar |
+| Ambiente de pruebas en Azure (§4.1) | 🟡 Callback URL de Meta apuntando a Azure (12-nov); falta la prueba con WhatsApp real |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
 | Claves en `.env` local y Azure | ✅ rotadas en los dos (12-nov; Anthropic da 200, SICAS coincide) |
 
@@ -32,6 +32,16 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 **Ya no hay producción con Whapi:** el canal de Whapi se borró el 9-nov. El servicio de Railway volvió a arrancar el 9-nov
 (sigue con `WHATSAPP_PROVIDER=whapi`, así que está sano pero no contesta a nadie hasta el corte a Meta; ver §5.7).
 
+> **🔄 12-nov — WABA nueva.** La WABA `1586670603131302` y su número de prueba desaparecieron del portafolio,
+> así que el token devolvía *"Object does not exist"*. Se recreó todo desde developers.facebook.com → **Casos de uso**
+> → WhatsApp → *Paso 1. Pruébalo*. Meta ahora separa dos activos: **Cuentas de WhatsApp** (el perfil del número) y
+> **Cuentas de mensajes** (lo que la Cloud API trata como WABA: `phone_numbers`, `subscribed_apps`). A `backend-whatsapp`
+> hay que asignarle **las dos** (Configuración del negocio → Cuentas → …) con control total. Se generó un **token nuevo**
+> (en `.env` y en Azure), `META_PHONE_NUMBER_ID=1396953776843076` (en `.env` y en Azure, revisión `wa-bot-test--0000004`),
+> la app se volvió a suscribir a `1702606288130438/subscribed_apps` y la Callback URL apunta a Azure.
+> Destinatario de prueba `+1 737 888 9040` registrado de nuevo. El número de prueba aparece en estado `PENDING`.
+> En los comandos de §4 cambia `1586670603131302` por `1702606288130438`.
+
 ---
 
 ## 2. Datos de Meta (no son secretos)
@@ -40,17 +50,18 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 |---|---|
 | Portafolio comercial | Gonzalez Loredo Asesoria Patrimonial (**sin verificar**) |
 | App | Gonzalez Loredo WA Bot — App ID `28837436845844340` |
-| WABA ID | `1586670603131302` |
-| Número de prueba | `+1 555 200 1391` |
-| Phone Number ID (prueba) | `1264214943440306` |
+| Cuenta de mensajes (la que usa la Cloud API como "WABA") | `1702606288130438` (*Test Messaging Account*) — **nueva, 12-nov** |
+| Cuenta de WhatsApp (perfil del número) | `1181996890926571` — la API responde *"not supported"*; no se usa |
+| Número de prueba | `+1 555 190 7100` — **nuevo, 12-nov** |
+| Phone Number ID (prueba) | `1396953776843076` — **nuevo, 12-nov** |
+| ~~WABA vieja~~ | ~~`1586670603131302`~~, número `+1 555 200 1391` / `1264214943440306`: **ya no existen** |
 | Destinatario de prueba registrado | `+1 737 888 9040` |
 | Versión de Graph API usada | `v21.0` (configurable con `META_API_VERSION`) |
 
 Los secretos (`META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `ANTHROPIC_API_KEY`, SICAS) viven **solo** en `.claude/worktrees/meta-cloud-api/.env`, que git ignora.
 
-> ⚠️ En Meta, la **Callback URL** sigue apuntando a un túnel temporal que ya no existe
-> (`https://suggestion-own-joint-tommy.trycloudflare.com/webhook`, 9-oct). Hay que actualizarla
-> cada vez que se levante un túnel nuevo, o al desplegar en el hosting definitivo (ver §4).
+> ℹ️ Desde el 12-nov la **Callback URL** apunta a Azure (`…azurecontainerapps.io/webhook`). Si levantas el túnel local,
+> hay que cambiarla otra vez (§4); Meta admite una sola.
 
 ---
 
@@ -135,7 +146,7 @@ es necesario para las extensiones). La sesión de `az login` queda guardada en `
 **Pendientes, en orden:**
 
 1. ✅ **`ENVIRONMENT=production`** — aplicado por el usuario el 18-oct (revisión `wa-bot-test--0000003`). Los logs ya no imprimen datos de clientes.
-2. **Apuntar Meta a Azure:** en developers.facebook.com → WhatsApp → Configuration, usa la Callback URL
+2. ✅ (12-nov) **Apuntar Meta a Azure:** en developers.facebook.com → WhatsApp → Configuration, usa la Callback URL
    `https://wa-bot-test.nicefield-03aa0d61.southcentralus.azurecontainerapps.io/webhook` con el mismo `META_VERIFY_TOKEN`.
    También se puede hacer por API con el `curl` de arriba, cambiando `NUEVA_URL`. Meta admite **una sola** Callback URL:
    mientras apunte a Azure, el túnel local no recibe nada.
