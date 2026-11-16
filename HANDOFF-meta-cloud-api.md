@@ -1,7 +1,7 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
 > Última sesión: **12 de noviembre de 2026** (anteriores: 9-nov; 18, 17, 9 y 2 de octubre)
-> Rama: `feat/meta-cloud-api` (solo commit local, **sin push ni PR**)
+> Rama: `feat/meta-cloud-api` (**en GitHub desde el 15-nov**, sin PR)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
 
@@ -85,7 +85,7 @@ Los secretos (`META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `ANTH
 
 ## 4. Cómo retomar el entorno local
 
-Herramientas instaladas en esta Mac: `~/.local/bin/uv`, `~/.local/bin/cloudflared` y `.venv/` con Python 3.11 dentro del worktree. Python del sistema = 3.9, **no sirve**.
+Herramientas instaladas en esta Mac: `~/.local/bin/uv`, `~/.local/bin/cloudflared`, `~/.local/bin/gh` (2.103.3, autenticado y configurado para `git push` desde el 15-nov) y `.venv/` con Python 3.11 dentro del worktree. Python del sistema = 3.9, **no sirve**.
 
 ```bash
 cd ~/Documents/src/whatsapp-agentkit/.claude/worktrees/meta-cloud-api
@@ -376,7 +376,7 @@ Opciones, de menor a mayor esfuerzo:
 
 ### 5.10 Cerrar la rama
 
-- `git push -u origin feat/meta-cloud-api` y abrir el PR cuando 5.1–5.7 estén listos.
+- ✅ (15-nov) Rama subida con `git push -u origin feat/meta-cloud-api`. Abre el PR cuando 5.1–5.7 estén listos (`~/.local/bin/gh pr create`).
 - Cuando ya no se use, borra el worktree con `git worktree remove .claude/worktrees/meta-cloud-api`.
 
 ---
