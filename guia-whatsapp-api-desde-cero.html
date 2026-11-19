@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>WhatsApp API desde cero</title>
+<style>
+  :root {
+    --bg: #FAFBF9;
+    --surface: #FFFFFF;
+    --ink: #1A2620;
+    --muted: #5C6B62;
+    --accent: #0B7A4B;
+    --accent-ink: #0A6A41;
+    --accent-soft: #E6F3EC;
+    --line: #DCE5DE;
+    --code-bg: #EFF4F0;
+    --code-ink: #2A4436;
+    --warn: #8A5E10;
+    --warn-bg: #FBF3DE;
+    --warn-line: #E8D5A4;
+    --danger: #A03434;
+    --danger-bg: #FBECEC;
+    --danger-line: #EBC5C5;
+    --shadow: 0 1px 3px rgba(23, 37, 29, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1512;
+      --surface: #161E19;
+      --ink: #E6EEE8;
+      --muted: #96A69B;
+      --accent: #43C084;
+      --accent-ink: #5ED29A;
+      --accent-soft: #1A2B21;
+      --line: #25322A;
+      --code-bg: #1D2822;
+      --code-ink: #A9D8BE;
+      --warn: #D9AC55;
+      --warn-bg: #2A2312;
+      --warn-line: #4A3D1C;
+      --danger: #E08585;
+      --danger-bg: #2C1717;
+      --danger-line: #4E2525;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1512;
+    --surface: #161E19;
+    --ink: #E6EEE8;
+    --muted: #96A69B;
+    --accent: #43C084;
+    --accent-ink: #5ED29A;
+    --accent-soft: #1A2B21;
+    --line: #25322A;
+    --code-bg: #1D2822;
+    --code-ink: #A9D8BE;
+    --warn: #D9AC55;
+    --warn-bg: #2A2312;
+    --warn-line: #4A3D1C;
+    --danger: #E08585;
+    --danger-bg: #2C1717;
+    --danger-line: #4E2525;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.65;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 22px 96px;
+  }
+
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  code, .mono {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 1px 6px;
+    border-radius: 5px;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5.5vw, 42px);
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    font-weight: 800;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  .dek {
+    font-size: 18.5px;
+    color: var(--muted);
+    margin: 0 0 26px;
+    max-width: 60ch;
+    text-wrap: pretty;
+  }
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+  .meta-chip {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 5px 13px;
+    white-space: nowrap;
+  }
+  .meta-chip strong { color: var(--ink); font-weight: 700; }
+
+  /* ---------- summary / index ---------- */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px 26px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  .panel h2 { margin-top: 0; }
+  .index {
+    list-style: none;
+    counter-reset: idx;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .index li { counter-increment: idx; }
+  .index a {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    text-decoration: none;
+    color: var(--ink);
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15.5px;
+  }
+  .index a:hover { background: var(--accent-soft); }
+  .index a::before {
+    content: counter(idx);
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-ink);
+    min-width: 18px;
+    text-align: right;
+  }
+  .index .idx-time { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+
+  /* ---------- sections ---------- */
+  h2 {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .phase {
+    margin-top: 52px;
+    scroll-margin-top: 24px;
+  }
+  .phase-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+  .phase-num {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.1;
+    min-width: 40px;
+  }
+  .phase-head h2 { margin: 2px 0 4px; font-size: 23px; }
+  .phase-time {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 0;
+  }
+  .phase-time strong { color: var(--warn); font-weight: 700; }
+
+  .steps { padding-left: 24px; margin: 0 0 16px; }
+  .steps > li { margin-bottom: 12px; padding-left: 4px; }
+  .steps > li::marker { font-weight: 700; color: var(--accent-ink); }
+  ul { padding-left: 22px; margin: 8px 0 16px; }
+  ul > li { margin-bottom: 8px; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    font-size: 15.5px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .tag {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: var(--accent-ink);
+  }
+  .callout.warn { border-color: var(--warn-line); border-left-color: var(--warn); background: var(--warn-bg); }
+  .callout.warn .tag { color: var(--warn); }
+  .callout.danger { border-color: var(--danger-line); border-left-color: var(--danger); background: var(--danger-bg); }
+  .callout.danger .tag { color: var(--danger); }
+
+  /* ---------- checklist ---------- */
+  .check {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .check li {
+    position: relative;
+    padding: 0 0 0 32px;
+    margin: 0;
+  }
+  .check li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 4px;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--accent);
+    border-radius: 5px;
+    background: var(--accent-soft);
+  }
+
+  /* ---------- tables ---------- */
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    margin: 18px 0;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 560px;
+    font-size: 14.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  th {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--code-bg);
+  }
+  td strong { font-weight: 700; }
+
+  .footer-note {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 34px 16px 72px; }
+    .phase-num { font-size: 24px; min-width: 32px; }
+    .index .idx-time { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <p class="eyebrow">Runbook · WhatsApp Business Cloud API</p>
+  <h1>Alta en Meta desde cero, sin morir en el intento</h1>
+  <p class="dek">El camino completo para conectar un número de WhatsApp a la API oficial de Meta (Cloud API) empezando sin ninguna cuenta — con las trampas reales que nos encontramos al hacerlo, marcadas donde aparecen.</p>
+
+  <div class="meta-strip">
+    <span class="meta-chip">Trabajo activo: <strong>~2–4 h</strong></span>
+    <span class="meta-chip">Esperas de Meta: <strong>hasta 2–3 semanas</strong></span>
+    <span class="meta-chip">Costo por recibir/responder: <strong>$0</strong></span>
+    <span class="meta-chip">Actualizado: <strong>ago 2026</strong></span>
+  </div>
+
+  <div class="panel">
+    <h2>Qué vas a tener al final</h2>
+    <ul class="check">
+      <li>Un <strong>portafolio de negocio</strong> en Meta, verificado (o en proceso).</li>
+      <li>Una <strong>app de Meta for Developers</strong> con el producto WhatsApp y una <strong>cuenta de WhatsApp Business (WABA)</strong>.</li>
+      <li>Tu <strong>número dedicado</strong> conectado a la API, con nombre visible aprobado.</li>
+      <li>Un <strong>token permanente</strong> (system user) y el <strong>Phone Number ID</strong> — las dos credenciales que tu sistema necesita para mandar mensajes.</li>
+      <li>Un <strong>webhook</strong> recibiendo los mensajes entrantes en tu servidor.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>Índice</h2>
+    <ol class="index">
+      <li><a href="#f1">Perfil personal de Facebook <span class="idx-time">10 min + 2–7 días de espera</span></a></li>
+      <li><a href="#f2">Portafolio de negocio (Business Manager) <span class="idx-time">20 min</span></a></li>
+      <li><a href="#f3">Cuenta de developer y la app <span class="idx-time">30 min</span></a></li>
+      <li><a href="#f4">Verificación del negocio — inicia YA <span class="idx-time">15 min + 2 días–2 sem</span></a></li>
+      <li><a href="#f5">El número y el Phone Number ID <span class="idx-time">30 min</span></a></li>
+      <li><a href="#f6">Token permanente (system user) <span class="idx-time">20 min</span></a></li>
+      <li><a href="#f7">Webhook: recibir mensajes <span class="idx-time">30 min</span></a></li>
+      <li><a href="#f8">Probar y reglas de oro <span class="idx-time">30 min</span></a></li>
+    </ol>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">Planea los tiempos muertos</span>
+    <p>Dos pasos tienen espera obligada de Meta: el <strong>perfil de Facebook nuevo debe madurar 2–7 días</strong> antes de registrarlo como developer (Fase 1) y la <strong>verificación del negocio tarda de 2 días a 2 semanas</strong> (Fase 4). Arranca esas dos cuanto antes; todo lo demás es trabajo de una tarde.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Antes de empezar, junta esto</h2>
+    <ul class="check">
+      <li><strong>Un número de teléfono dedicado</strong> que no tenga WhatsApp instalado y que no te duela dedicar por completo (ver Fase 5 — un chip prepago barato funciona perfecto).</li>
+      <li><strong>Documentos del negocio</strong>: acta constitutiva, constancia de situación fiscal o un recibo a nombre de la empresa (para la verificación).</li>
+      <li><strong>Sitio web del negocio</strong> con una <strong>URL de política de privacidad</strong> (Meta la exige para activar la app).</li>
+      <li><strong>Un servidor con HTTPS público y certificado válido</strong>, solo si vas a recibir mensajes (webhook). Para solo enviar no hace falta.</li>
+      <li>Tu celular personal a la mano: habrá códigos SMS varias veces.</li>
+    </ul>
+  </div>
+
+  <!-- ============ FASE 1 ============ -->
+  <section class="phase" id="f1">
+    <div class="phase-head">
+      <div class="phase-num">1</div>
+      <div>
+        <h2>Perfil personal de Facebook</h2>
+        <p class="phase-time">10 min de trabajo + <strong>2–7 días de maduración</strong> · Sáltala si ya tienes un perfil con antigüedad</p>
+      </div>
+    </div>
+
+    <p>La plataforma de desarrolladores (<code>developers.facebook.com</code>) exige un <strong>perfil personal de Facebook</strong>. Instagram no sirve para esto (sí entra a Business Suite, pero no a developers), y las "cuentas Meta" sin Facebook son solo de Quest/VR.</p>
+
+    <ol class="steps">
+      <li>Crea el perfil <strong>con datos reales</strong>: nombre real, teléfono real verificado por SMS, fecha de nacimiento real. Es solo la llave técnica — configúralo 100 % privado; no necesita foto, amigos ni publicaciones.</li>
+      <li>Hazlo <strong>desde la app del celular con tu red de siempre</strong> (datos móviles o tu WiFi). Nada de VPN.</li>
+      <li>Activa la <strong>verificación en dos pasos (2FA)</strong> de inmediato.</li>
+      <li>Déjalo <strong>madurar 2–7 días</strong> con inicios de sesión normales (ábrelo un rato cada día).</li>
+    </ol>
+
+    <div class="callout danger">
+      <span class="tag">Nunca</span>
+      <p>No crees el perfil con nombre falso, ni con VPN, ni intentes registrarlo como developer el mismo día. Las cuentas "raras" o recién nacidas reciben exactamente el error de <em>«esta función no está disponible»</em> al llegar a developers — y de ahí no hay mucho que hacer más que esperar o empezar de nuevo.</p>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Atajo</span>
+      <p>Cualquier persona de confianza con un perfil de Facebook con años de antigüedad puede saltarse la espera: se le invita al portafolio del negocio, crea la app y te agrega como administrador. <strong>La app pertenece al negocio, no a quien la creó.</strong></p>
+    </div>
+  </section>
+
+  <!-- ============ FASE 2 ============ -->
+  <section class="phase" id="f2">
+    <div class="phase-head">
+      <div class="phase-num">2</div>
+      <div>
+        <h2>Portafolio de negocio (Business Manager)</h2>
+        <p class="phase-time">20 min</p>
+      </div>
+    </div>
+
+    <ol class="steps">
+      <li>Entra a <code>business.facebook.com</code> con el perfil de la Fase 1 y crea un <strong>portafolio de negocio</strong> (Meta a veces lo llama Business Manager, a veces "portafolio comercial" — es lo mismo).</li>
+      <li>Ve a Configuración del negocio → <strong>Información del negocio</strong> y completa TODO: razón social legal, dirección y sitio web del negocio.</li>
+    </ol>
+
+    <div class="callout">
+      <span class="tag">Tip</span>
+      <p>No escatimes en este formulario: la información incompleta es la causa #1 de que el botón de "Iniciar verificación" (Fase 4) aparezca gris o ni siquiera aparezca.</p>
+    </div>
+  </section>
+
+  <!-- ============ FASE 3 ============ -->
+  <section class="phase" id="f3">
+    <div class="phase-head">
+      <div class="phase-num">3</div>
+      <div>
+        <h2>Cuenta de developer y la app</h2>
+        <p class="phase-time">30 min</p>
+      </div>
+    </div>
+
+    <ol class="steps">
+      <li>Con tu perfil personal ya maduro, regístrate como desarrollador en <code>developers.facebook.com/async/registration</code> (pide verificar teléfono por SMS).</li>
+      <li>Ve a <strong>My Apps → Create App</strong> → tipo <strong>Business</strong>. Nómbrala algo como <code>MiNegocio Agente WhatsApp</code> y lígala al portafolio de la Fase 2.</li>
+      <li>En el dashboard de la app: <strong>Add Product → WhatsApp → Set up</strong>. Esto crea (o liga) tu <strong>WABA</strong>: la cuenta de WhatsApp Business.</li>
+      <li>Para que la app pase de "Desarrollo" a <strong>Activo</strong>, Meta pide la <strong>URL de política de privacidad</strong> en la configuración básica de la app. Ponla desde ahorita.</li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="tag">Ojo — «no tienes acceso» en developers</span>
+      <p>Si developers.facebook.com te rebota, en orden de probabilidad: (1) tu perfil aún no es cuenta de developer → regístrate en la URL del paso 1; (2) estás entrando con una cuenta de trabajo/negocio sin perfil personal; (3) la cuenta está marcada por Meta (nueva, VPN, actividad rara) → revisa <code>facebook.com/accountquality</code>, quita la VPN, prueba en incógnito y reintenta en 24–72 h. Plan alternativo: crear la app desde Configuración del negocio → Cuentas → <strong>Apps</strong> → «Crear un identificador de app», o que un colega que ya sea developer la cree dentro del <strong>mismo portafolio</strong> y te agregue.</p>
+    </div>
+  </section>
+
+  <!-- ============ FASE 4 ============ -->
+  <section class="phase" id="f4">
+    <div class="phase-head">
+      <div class="phase-num">4</div>
+      <div>
+        <h2>Verificación del negocio — inicia YA</h2>
+        <p class="phase-time">15 min de trabajo + <strong>2 días a 2 semanas de espera</strong></p>
+      </div>
+    </div>
+
+    <p>Sin verificar, el portafolio queda limitado a <strong>250 conversaciones/día iniciadas por el negocio</strong>. Verificado, sube a 1,000/día y escala solo (10k → 100k) según la calidad del número. Las <strong>respuestas</strong> a clientes que te escriben no tienen límite en ningún caso.</p>
+
+    <ol class="steps">
+      <li>URL directa: <code>business.facebook.com/settings/security</code> → sección «Verificación del negocio» → botón azul <strong>Iniciar verificación</strong>.</li>
+      <li>Sube un documento a nombre de la empresa: acta constitutiva, constancia fiscal o un recibo.</li>
+      <li>Espera. Llega por notificación/correo; puede tardar de 2 días a 2 semanas.</li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="tag">Ojo — ¿botón gris o no aparece?</span>
+      <p>Meta habilita el botón cuando algo lo "exige": primero completa Información del negocio (Fase 2) y crea la app + WABA (Fase 3); el botón se activa solo. ¿No ves el Centro de seguridad? En la interfaz nueva: engrane ⚙️ abajo-izquierda → Configuración del negocio → Centro de seguridad. Requiere ser <strong>admin con control total</strong> del portafolio correcto (selector arriba-izquierda).</p>
+    </div>
+
+    <div class="callout">
+      <span class="tag">No confundas los dos estatus</span>
+      <p>La cuenta de WhatsApp «Aprobada» y la «Verificación del negocio» son cosas distintas. Aquí es donde se revisa cada una:</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Estatus</th><th>Dónde revisarlo</th><th>Qué significa</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>WABA «Aprobada»</strong></td>
+            <td>Configuración del negocio → Cuentas → Cuentas de WhatsApp</td>
+            <td>Meta revisó la cuenta de WhatsApp Business y pasó. NO es la verificación del negocio.</td>
+          </tr>
+          <tr>
+            <td><strong>Verificación del negocio</strong></td>
+            <td><code>business.facebook.com/settings/security</code></td>
+            <td>Verificado = límites suben a 1,000/día y escalan solos.</td>
+          </tr>
+          <tr>
+            <td><strong>Límite y calidad del número</strong></td>
+            <td><code>business.facebook.com/wa/manage/phone-numbers</code> → columnas «Límite de mensajería» y «Calificación de calidad»</td>
+            <td>Tu techo real de conversaciones iniciadas/día y la salud del número.</td>
+          </tr>
+          <tr>
+            <td><strong>Nombre para mostrar</strong></td>
+            <td>Misma pantalla de números</td>
+            <td>Debe estar aprobado para poder enviar.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size:14px; color:var(--muted);">Desde octubre 2025 el límite de mensajería se comparte entre <strong>todos</strong> los números del mismo portafolio, no por número.</p>
+  </section>
+
+  <!-- ============ FASE 5 ============ -->
+  <section class="phase" id="f5">
+    <div class="phase-head">
+      <div class="phase-num">5</div>
+      <div>
+        <h2>El número y el Phone Number ID</h2>
+        <p class="phase-time">30 min</p>
+      </div>
+    </div>
+
+    <p>Regla dura de la plataforma: <strong>un número conectado a la API deja de funcionar en la app de WhatsApp del celular</strong>, y al revés — un número con la app activa no se puede conectar sin migrarlo. Por eso lo cómodo es un número nuevo y dedicado.</p>
+
+    <ol class="steps">
+      <li>Mientras tanto, en <strong>WhatsApp → API Setup</strong> Meta te regala un <strong>número de prueba</strong> (+1 555…). Sirve para probar todo el flujo, pero solo puede escribirle a <strong>destinatarios de prueba</strong> que registres ahí mismo (si no, error <code>131030</code>).</li>
+      <li>Para el número real: <strong>Add phone number</strong> → recibes un código por SMS o llamada al chip → listo.</li>
+      <li>De esa misma pantalla copia dos datos que tu sistema va a necesitar:
+        <ul>
+          <li><strong>Phone Number ID</strong> — un número largo, NO es el teléfono.</li>
+          <li><strong>WhatsApp Business Account ID</strong> (el ID de la WABA).</li>
+        </ul>
+      </li>
+      <li>Espera la aprobación del <strong>nombre para mostrar</strong> (minutos a horas normalmente).</li>
+    </ol>
+
+    <div class="callout">
+      <span class="tag">Tip — el chip dedicado</span>
+      <p>Un chip prepago barato funciona perfecto. Dos cuidados: <strong>recárgale algo cada ~2 meses</strong> o la telco recicla el número (y pierdes el WhatsApp del negocio), y <strong>jamás le instales la app de WhatsApp</strong> — el chip solo existe para recibir el SMS de alta y vivir en un cajón.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="tag">Ojo — WABAs fantasma</span>
+      <p>Si el wizard de Meta se te traba y lo reintentas, cada intento abortado puede dejar una WABA vacía con el mismo nombre. No las borres a ciegas ni te confundas: <strong>identifica la buena por su ID</strong> (la que tiene el número dentro).</p>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Tip — «Invitar a WhatsApp»</span>
+      <p>Un número recién dado de alta aparece en los celulares como «Invitar a WhatsApp» (caché de contactos). Se destraba abriendo el chat directo con <code>wa.me/52XXXXXXXXXX</code> — ese es el link que debes poner en tu sitio web y publicidad.</p>
+    </div>
+  </section>
+
+  <!-- ============ FASE 6 ============ -->
+  <section class="phase" id="f6">
+    <div class="phase-head">
+      <div class="phase-num">6</div>
+      <div>
+        <h2>Token permanente (system user)</h2>
+        <p class="phase-time">20 min</p>
+      </div>
+    </div>
+
+    <p>El token que muestra API Setup <strong>caduca cada 24 horas</strong> — sirve para probar, no para producción. El permanente se genera con un <em>system user</em>:</p>
+
+    <ol class="steps">
+      <li>Business Manager → Configuración del negocio → Usuarios → <strong>System Users</strong> → Add. Nombre tipo <code>backend-whatsapp</code>. El rol <strong>Employee</strong> es suficiente si le das acceso total a los activos (no hace falta Admin).</li>
+      <li>Al system user → <strong>Add Assets</strong>: asígnale la <strong>App</strong> (control total) y la <strong>cuenta de WhatsApp Business</strong>.</li>
+      <li><strong>Generate New Token</strong> → selecciona la app → permisos <code>whatsapp_business_messaging</code> y <code>whatsapp_business_management</code> → caducidad <strong>Nunca</strong>.</li>
+      <li><strong>Copia el token de inmediato: solo se muestra una vez.</strong> Guárdalo como el secreto que es y pégalo en la configuración de tu sistema.</li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="tag">Ojo — dos trampas del token</span>
+      <p>(1) Con el negocio recién verificado, generar con caducidad «Nunca» a veces truena con un error genérico — reintenta más tarde, y <strong>verifica qué caducidad quedó realmente</strong>: si quedó de 60 días, regenera. (2) Si el token sale en una captura de pantalla, un chat o un log, <strong>rótalo</strong>: Revocar tokens → Generar nuevo → actualizar tu sistema. Toma 2 minutos.</p>
+    </div>
+  </section>
+
+  <!-- ============ FASE 7 ============ -->
+  <section class="phase" id="f7">
+    <div class="phase-head">
+      <div class="phase-num">7</div>
+      <div>
+        <h2>Webhook: recibir mensajes</h2>
+        <p class="phase-time">30 min · Requiere tu endpoint HTTPS ya funcionando</p>
+      </div>
+    </div>
+
+    <ol class="steps">
+      <li>En tu sistema define un <strong>verify token</strong>: cualquier cadena secreta que inventes (p. ej. <code>minegocio-wa-2026-xyz</code>).</li>
+      <li>En Meta Developers → WhatsApp → <strong>Configuration → Webhook → Edit</strong>:
+        <ul>
+          <li><strong>Callback URL</strong>: tu endpoint público, p. ej. <code>https://tudominio.com/whatsapp/webhook</code></li>
+          <li><strong>Verify token</strong>: exactamente el mismo que pusiste en tu sistema.</li>
+        </ul>
+      </li>
+      <li>En <strong>Webhook fields</strong> suscríbete al campo <code>messages</code> (es el único que necesitas para conversar).</li>
+      <li><strong>Suscribe la app a la WABA</strong> — el toggle «Suscribir webhooks» en el panel del número, o por API (paso crítico, ver abajo).</li>
+    </ol>
+
+    <div class="callout danger">
+      <span class="tag">La trampa más cara de todo el proceso</span>
+      <p>Puedes tener el webhook verde, el campo <code>messages</code> suscrito y la app en Activo… y aun así <strong>no recibir nada</strong>, mientras el visor del panel de Meta sí muestra los mensajes (te hace dudar de tu servidor, que está perfecto). Causa: <strong>la app no está suscrita a la WABA</strong>. Compruébalo con <code>GET /vXX.0/&lt;WABA_ID&gt;/subscribed_apps</code> — si solo aparece «WA DevX Webhook Events 1P App» (la app interna de Meta que alimenta el visor), la tuya falta. Fix: el toggle del panel o <code>POST /vXX.0/&lt;WABA_ID&gt;/subscribed_apps</code> con el token.</p>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Tip</span>
+      <p>Si «Verify and save» falla: confirma que la URL sea HTTPS válido accesible desde internet (pruébala con <code>curl</code> desde fuera de tu red) y que el verify token coincida carácter por carácter. Y a veces Meta simplemente falla al primer intento — reteclear y reintentar resuelve más seguido de lo que debería.</p>
+    </div>
+  </section>
+
+  <!-- ============ FASE 8 ============ -->
+  <section class="phase" id="f8">
+    <div class="phase-head">
+      <div class="phase-num">8</div>
+      <div>
+        <h2>Probar y reglas de oro</h2>
+        <p class="phase-time">30 min</p>
+      </div>
+    </div>
+
+    <ol class="steps">
+      <li>Desde tu celular, abre <code>wa.me/&lt;numero&gt;</code> y <strong>mándale un mensaje al número del negocio</strong>. Debe llegar a tu webhook.</li>
+      <li>Responde ese mensaje por API (texto libre). Debe llegarte al celular.</li>
+      <li>Revisa en <code>business.facebook.com/wa/manage/phone-numbers</code> que la calidad del número esté en verde.</li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="tag">Regla de oro #1 — la ventana de 24 horas</span>
+      <p><strong>El primer mensaje SIEMPRE lo manda el cliente.</strong> Cuando alguien te escribe, se abre una ventana de 24 h en la que puedes responder texto libre gratis. Fuera de ventana, Meta solo acepta <strong>plantillas aprobadas</strong> (Business Manager → WhatsApp Manager → Message templates; requieren método de pago registrado). Si intentas texto libre sin ventana, la API lo <em>acepta</em>… y lo tira.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="tag">Regla de oro #2 — «aceptado» no es «entregado»</span>
+      <p>Que la API te devuelva 200 con un ID de mensaje solo significa que Meta lo aceptó. Si no llega, revisa los <em>statuses</em> del webhook o el detalle del error — no confíes en el 200.</p>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Gotcha México — el 521</span>
+      <p>Los mensajes entrantes de números mexicanos llegan con el «1» legado (<code>5218112345678</code>), pero al <strong>enviar</strong>, Meta rechaza ese formato: normaliza siempre a <code>52</code> + 10 dígitos.</p>
+    </div>
+
+    <p><strong>Costos</strong> (referencia jul-2026, México): recibir y responder dentro de ventana <strong>$0</strong>; plantillas de utilidad ≈ US$0.01 y de marketing ≈ US$0.04–0.05 por mensaje. Verifica la tarifa vigente en la página de precios de Meta. Y no hagas envíos masivos en frío: Meta degrada la calidad del número y con ella tu límite diario.</p>
+  </section>
+
+  <!-- ============ PROBLEMAS ============ -->
+  <section class="phase" id="problemas">
+    <div class="phase-head">
+      <div class="phase-num">＋</div>
+      <div>
+        <h2>Problemas comunes</h2>
+        <p class="phase-time">Para cuando algo no jala</p>
+      </div>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Síntoma</th><th>Causa probable</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>La verificación del webhook falla</td>
+            <td>Verify token distinto, o la URL no es HTTPS válido/público. A veces solo hay que reintentar.</td>
+          </tr>
+          <tr>
+            <td><code>(#10) Application does not have permission</code></td>
+            <td>Token sin <code>whatsapp_business_messaging</code>, o la app no tiene asignada la cuenta de WhatsApp en el system user.</td>
+          </tr>
+          <tr>
+            <td>Salientes con error <code>131030</code></td>
+            <td>El destinatario no está registrado como destinatario de prueba (aplica mientras uses el número +1 555 de Meta).</td>
+          </tr>
+          <tr>
+            <td>No llegan mensajes entrantes al servidor, pero el visor del panel sí los muestra</td>
+            <td>La app no está suscrita a la WABA (ver Fase 7 — la trampa cara). O el campo <code>messages</code> sin suscribir, o tu servidor no es accesible desde internet.</td>
+          </tr>
+          <tr>
+            <td>Los envíos empiezan a fallar después de ~1 día de funcionar</td>
+            <td>Estás usando el token temporal de API Setup. Genera el permanente (Fase 6).</td>
+          </tr>
+          <tr>
+            <td>developers.facebook.com dice «no tienes acceso» / «función no disponible»</td>
+            <td>Perfil sin registrar como developer, cuenta sin perfil personal, o cuenta marcada (nueva/VPN). Ver Fase 3.</td>
+          </tr>
+          <tr>
+            <td>WhatsApp Manager no deja guardar el perfil del número (foto, email, sitio web)</td>
+            <td>Suele ser un tema de permisos de tu persona sobre la WABA. Salida que sí funciona: configurarlo por API con el token (<code>POST /&lt;PHONE_ID&gt;/whatsapp_business_profile</code>).</td>
+          </tr>
+          <tr>
+            <td>Meta se puso imposible y nada avanza</td>
+            <td>Plan C: un BSP (360dialog, Twilio…) da de alta el número sin pasar por developers.facebook.com, a cambio de renta mensual o markup por mensaje.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="footer-note">Runbook basado en un alta real completada en agosto 2026 (México, Cloud API directa sin BSP). Las pantallas de Meta cambian de nombre y de lugar con frecuencia — si algo no coincide, busca el equivalente antes de asumir que no existe.</p>
+
+</div>
+</body>
+</html>
