@@ -1,6 +1,6 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **12 de noviembre de 2026** (anteriores: 9-nov; 18, 17, 9 y 2 de octubre)
+> Última sesión: **19 de noviembre de 2026** (anteriores: 15, 12 y 9 de nov; 18, 17, 9 y 2 de octubre)
 > Rama: `feat/meta-cloud-api` (**en GitHub desde el 15-nov**, sin PR)
 > Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
 > Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
@@ -21,13 +21,13 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Monitor de sesiones (aviso 2.5 min / cierre 5 min) | ✅ envía bien vía Meta |
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
-| Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov); falta darlo de alta en Meta (§5.3) |
+| Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov). ⛔ **El chip aún no está activado** (19-nov); falta activarlo y darlo de alta en Meta (§5.3) |
 | Ambiente de pruebas en Azure (§4.1) | ✅ probado de punta a punta el 13-nov (Meta → Azure → Claude → SICAS → PDF → monitor de 2.5/5 min) |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
 | Claves en `.env` local y Azure | ✅ rotadas en los dos (12-nov; Anthropic da 200, SICAS coincide) |
 
-> **▶ Para retomar (sesión del 12-nov):** las claves ya están al día (§4.2). Sigue los pendientes de §4.1
-> (apuntar la Callback URL a Azure y probar con un WhatsApp real) y da de alta el número real (§5.3).
+> **▶ Para retomar (sesión del 19-nov):** el siguiente paso es el alta del número real (§5.3), pero está **bloqueado**
+> hasta que el chip +52 81 2378 5486 esté activado (el usuario ya consiguió quien le ayude). Azure (§4.1) ya está probado.
 
 **Ya no hay producción con Whapi:** el canal de Whapi se borró el 9-nov. El servicio de Railway volvió a arrancar el 9-nov
 (sigue con `WHATSAPP_PROVIDER=whapi`, así que está sano pero no contesta a nadie hasta el corte a Meta; ver §5.7).
@@ -264,7 +264,23 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 > asistente que lo sigue usando para hablar con los clientes, así que no se migra.
 > ✅ **Número elegido (12-nov): +52 81 2378 5486.** En Meta se captura como país México y los 10 dígitos
 > `8123785486` (sin el "1").
-> ⏳ Siguiente paso: verificar que el chip esté activo y recibe SMS o llamadas, y darlo de alta en Meta (pasos de abajo).
+> ⛔ **(19-nov) El chip todavía NO está activado.** El usuario ya habló con alguien que le va a ayudar a activarlo.
+> Hasta entonces el alta en Meta está bloqueada. Al retomar, pregunta primero si el chip ya está activo, si recibe
+> SMS o llamadas y si no tiene cuenta de WhatsApp.
+> ℹ️ (19-nov) Revisado por API: la cuenta de mensajes `1702606288130438` solo tiene el número de prueba, que ya está
+> `CONNECTED` (antes `PENDING`). El token sigue válido y la app sigue suscrita.
+>
+> **Plan de alta por API (cuando el chip esté activo).** Confirma cada paso con el usuario, porque se envían a Meta:
+> 1. `POST /1702606288130438/phone_numbers` con `cc=52`, `phone_number=8123785486` y `verified_name=<nombre visible>`.
+>    Devuelve el nuevo Phone Number ID. **Falta decidir el nombre visible.** Tiene que parecerse al nombre del
+>    negocio, por ejemplo "Gonzalez Loredo Asesoría Patrimonial".
+> 2. `POST /<PHONE_ID>/request_code` con `code_method=SMS` (o `VOICE`) y `language=es`.
+> 3. `POST /<PHONE_ID>/verify_code` con `code=<código que llega al chip>`.
+> 4. `POST /<PHONE_ID>/register` con `messaging_product=whatsapp` y `pin=<6 dígitos>`. **Guarda el PIN** en el `.env`
+>    (no en este archivo); Meta lo pide si el número se vuelve a registrar.
+> 5. Actualiza `META_PHONE_NUMBER_ID` en el `.env` y en Azure (`az containerapp update … --set-env-vars`) y prueba.
+>
+> Usa el token de `.env` leído con `python-dotenv`, no con el shell.
 > **No instalarle WhatsApp.** Si ya tiene una cuenta de WhatsApp, bórrala desde la app (*Ajustes → Cuenta → Eliminar
 > cuenta*) antes del alta; si no, Meta rechaza el número.
 
