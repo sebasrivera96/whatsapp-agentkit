@@ -1,9 +1,9 @@
 # Handoff — Migración a Meta WhatsApp Cloud API
 
-> Última sesión: **19 de noviembre de 2026** (anteriores: 15, 12 y 9 de nov; 18, 17, 9 y 2 de octubre)
+> Última sesión: **20 de noviembre de 2026**, desde la PC Windows (anteriores: 19, 15, 12 y 9 de nov; 18, 17, 9 y 2 de octubre)
 > Rama: `feat/meta-cloud-api` (**en GitHub desde el 15-nov**, sin PR)
-> Worktree: `.claude/worktrees/meta-cloud-api/` dentro del repo
-> Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (sin trackear, en la raíz del checkout principal)
+> Mac: worktree `.claude/worktrees/meta-cloud-api/`. PC Windows: la rama está en el checkout principal `C:\Src\whatsapp-agentkit` (§4.0)
+> Runbook de referencia: `guia-whatsapp-api-desde-cero.html` (en la raíz de la rama)
 
 ---
 
@@ -21,13 +21,18 @@ El bot **funciona de punta a punta con la API oficial de Meta** usando el **núm
 | Monitor de sesiones (aviso 2.5 min / cierre 5 min) | ✅ envía bien vía Meta |
 | Envío a un número mexicano (`521…` → `52…`) | ⏳ **no probado en real**: `+52 81 8176 4764` no está registrado como destinatario de prueba (error `131030`) |
 | Token permanente | ✅ usuario del sistema `backend-whatsapp` (ID `61595206172669`), sin caducidad — verificado 9-oct-2026 |
-| Número real del negocio | 🟡 elegido: **+52 81 2378 5486** (12-nov). ⛔ **El chip aún no está activado** (19-nov); falta activarlo y darlo de alta en Meta (§5.3) |
+| Número real del negocio | 🟡 **+52 81 2378 5486**: chip activo, recibe SMS y llamadas, nunca tuvo WhatsApp (20-nov). ⛔ **Meta rechazó el alta**: *Phone Numbers Count Exceeded Limit Per Business* (§5.3) |
+| Token de `backend-whatsapp` | ✅ **Rotado otra vez el 20-nov** (el anterior quedó expuesto en un chat). ⚠️ Azure todavía tiene el token **revocado** (§4.2) |
 | Ambiente de pruebas en Azure (§4.1) | ✅ probado de punta a punta el 13-nov (Meta → Azure → Claude → SICAS → PDF → monitor de 2.5/5 min) |
 | Hosting de producción con Meta | ❌ pendiente (Whapi se abandonó el 4-nov; ver §4.2) |
 | Claves en `.env` local y Azure | ✅ rotadas en los dos (12-nov; Anthropic da 200, SICAS coincide) |
 
-> **▶ Para retomar (sesión del 19-nov):** el siguiente paso es el alta del número real (§5.3), pero está **bloqueado**
-> hasta que el chip +52 81 2378 5486 esté activado (el usuario ya consiguió quien le ayude). Azure (§4.1) ya está probado.
+> **▶ Para retomar (sesión del 20-nov):** el alta del número real (§5.3) está **bloqueada por el cupo de números del
+> portafolio**. El usuario quedó de revisar en la interfaz de Meta qué número ocupa el cupo (ver §5.3, "20-nov").
+> Al retomar, pregúntale qué encontró. Después:
+> 1. liberar el cupo (borrar el número que sobre, **con confirmación aparte**) o pedir más números a Meta;
+> 2. repetir `python scripts/meta_alta.py add` y seguir con `request_code` → `verify_code` → `register`;
+> 3. arreglar `az` en la PC Windows (§4.0) y subir a Azure el **token nuevo** y el nuevo `META_PHONE_NUMBER_ID`.
 
 **Ya no hay producción con Whapi:** el canal de Whapi se borró el 9-nov. El servicio de Railway volvió a arrancar el 9-nov
 (sigue con `WHATSAPP_PROVIDER=whapi`, así que está sano pero no contesta a nadie hasta el corte a Meta; ver §5.7).
@@ -84,6 +89,22 @@ Los secretos (`META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `ANTH
 ---
 
 ## 4. Cómo retomar el entorno local
+
+### 4.0 PC Windows (`C:\Src\whatsapp-agentkit`, revisado el 20-nov)
+
+| Pieza | Estado |
+|---|---|
+| Rama | `feat/meta-cloud-api` en el checkout principal (no hay worktree) |
+| Python | 3.13.17 del sistema (sirve). **No hay `.venv`** ni se ha corrido `pip install -r requirements.txt` |
+| `.env` | ✅ copiado de la Mac el 20-nov, con el token de `backend-whatsapp` generado ese día |
+| Azure CLI 2.93 | ⚠️ **Dos problemas.** (1) La extensión `~\.azure\cliextensions\azure-devops` da *Access denied* y rompe todos los comandos; por ahora se esquiva con `$env:AZURE_EXTENSION_DIR` apuntando a una carpeta vacía, pero hay que borrarla o repararla. (2) La sesión está en la suscripción del trabajo (*COSMIC AKS PlayGround*): falta `az login` en el directorio personal y `az account set -s a7562d20-b172-4095-b1aa-d2e032909b39`. Probablemente también haya que instalar la extensión `containerapp` |
+| gh | Hay dos cuentas con sesión; la activa es `sebastianr_microsoft`. Para hacer push al repo: `gh auth switch -u sebasrivera96` |
+
+**`scripts/meta_alta.py`** (nuevo, 20-nov) hace el alta paso a paso. Lee el `.env` con python-dotenv y nunca imprime el token:
+`check` (solo lectura), `add`, `request <PHONE_ID> SMS|VOICE`, `verify <PHONE_ID> <CODIGO>` y `register <PHONE_ID>`.
+`register` usa `META_REGISTRATION_PIN` del `.env`, que **todavía no existe**: agrégalo con 6 dígitos antes de ese paso.
+
+### 4.0.1 Mac
 
 Herramientas instaladas en esta Mac: `~/.local/bin/uv`, `~/.local/bin/cloudflared`, `~/.local/bin/gh` (2.103.3, autenticado y configurado para `git push` desde el 15-nov) y `.venv/` con Python 3.11 dentro del worktree. Python del sistema = 3.9, **no sirve**.
 
@@ -189,6 +210,18 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 | `.env` local de este worktree | ✅ actualizado el 12-nov (Anthropic da 200) |
 | Secretos de Azure `wa-bot-test` | ✅ actualizados el 12-nov (revisión `wa-bot-test--0000003` reiniciada) |
 
+**20-nov — segunda rotación del token de Meta.** En la revisión previa al alta, un script imprimió el
+`META_ACCESS_TOKEN` en un chat (el script ya se corrigió). Se revocaron **todos** los tokens de `backend-whatsapp`; un
+`debug_token` confirmó `is_valid: false` en los dos anteriores. Después se generó uno nuevo (sin caducidad) y se puso
+en el `.env` de la PC Windows.
+- **Generar un token nuevo NO revoca el anterior.** Hay que usar *Revocar tokens*, que borra todos los tokens de la app.
+- El token nuevo trae también `manage_app_solution`, que el bot no usa. En la próxima rotación conviene desmarcarlo.
+- ⚠️ **Pendiente:** el secreto `meta-access-token` de Azure tiene un token **revocado**, así que `wa-bot-test` no puede
+  enviar mensajes. Súbelo desde el `.env` con `subprocess` (no con el shell) y reinicia la revisión.
+- ⚠️ **Pendiente:** el `.env` de la Mac tiene un token revocado. Cópiale el nuevo.
+- Para revisar un token revocado no sirve el propio token: usa el token de la app (`28837436845844340|<META_APP_SECRET>`)
+  como `access_token` de `debug_token`.
+
 **Arreglo del entorno local y de Azure, en orden:**
 
 > ⚠️ **(12-nov) La contraseña de SICAS contiene `$`.** Cargar el `.env` con el shell (`. ./.env`) la recorta
@@ -264,9 +297,26 @@ SPF/DKIM/DMARC pasan). Todo secreto guardado en Railway antes de esa fecha se co
 > asistente que lo sigue usando para hablar con los clientes, así que no se migra.
 > ✅ **Número elegido (12-nov): +52 81 2378 5486.** En Meta se captura como país México y los 10 dígitos
 > `8123785486` (sin el "1").
-> ⛔ **(19-nov) El chip todavía NO está activado.** El usuario ya habló con alguien que le va a ayudar a activarlo.
-> Hasta entonces el alta en Meta está bloqueada. Al retomar, pregunta primero si el chip ya está activo, si recibe
-> SMS o llamadas y si no tiene cuenta de WhatsApp.
+> ✅ **(20-nov) El chip ya está listo:** está activo, recibe SMS y llamadas, y nunca tuvo cuenta de WhatsApp.
+> ✅ **Nombre visible decidido (20-nov): "Gonzalez Loredo Asesoria Patrimonial"**, sin acento, idéntico al portafolio.
+>
+> ⛔ **(20-nov) El alta falló.** `POST /1702606288130438/phone_numbers` devolvió **400**, código `100`, subcódigo
+> `2388386`, *"Phone Numbers Count Exceeded Limit Per Business"*: *"delete an existing one from Meta Business Suite or
+> request additional numbers"*. No se creó nada. Lo que se averiguó (todo con `GET`):
+> - El portafolio es **Gonzalez Loredo Asesoria Patrimonial**, ID **`2027002114904103`**, `not_verified`.
+> - La cuenta de mensajes `1702606288130438` solo tiene el número de prueba `+1 555-190-7100` (`CONNECTED`).
+> - Desde la API no se pueden ver las demás cuentas del portafolio: el token no tiene `business_management` (403).
+>   Se decidió **no** darle ese permiso al token solo para esto.
+> - La WABA vieja `1586670603131302` y su número `1264214943440306` ya no existen (o no son accesibles), y la Cuenta de
+>   WhatsApp `1181996890926571` no se puede consultar por API.
+>
+> **Siguiente:** el usuario revisa en la interfaz de Meta qué números ocupan el cupo:
+> - WhatsApp Manager → *Números de teléfono* (revisa todas las cuentas en el selector de arriba a la izquierda);
+> - *Configuración del negocio* → *Cuentas* → *Cuentas de WhatsApp*.
+>
+> Busca números viejos, el `+1 555 200 1391` y cualquier intento previo con el +52 81 2378 5486. Después hay dos caminos:
+> borrar el número que sobre (**confírmalo aparte con el usuario**) o pedir más números a Meta.
+> Luego vuelve a correr `python scripts/meta_alta.py add`.
 > ℹ️ (19-nov) Revisado por API: la cuenta de mensajes `1702606288130438` solo tiene el número de prueba, que ya está
 > `CONNECTED` (antes `PENDING`). El token sigue válido y la app sigue suscrita.
 >
